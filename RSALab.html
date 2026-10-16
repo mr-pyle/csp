@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RSA Lab</title>
+<style>
+:root{
+  --bg:#eef2f6;--surface:#fff;--ink:#17212b;--muted:#6b7a8a;--line:#d3dbe4;
+  --accent:#1f5fbf;--accent-ink:#fff;--hit:#e3eefc;--bad:#c23b3b;--ok:#1d7a46;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;--accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--ok:#6fd49b;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;--accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--ok:#6fd49b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}
+h2{font-size:1.1rem;margin:0 0 6px}
+p{margin:0 0 10px}
+.sub,.note{color:var(--muted);font-size:.92rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:3px;margin-top:10px}
+input[type=text],textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:14px ui-monospace,Menlo,Consolas,monospace}
+textarea{min-height:70px;resize:vertical}
+input[type=range]{width:100%}
+button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:14px 0 0}
+dt{color:var(--muted)}
+dd{margin:0;font:14px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+dd.pub,dd.priv{background:var(--hit);border-radius:5px;padding:2px 6px}
+.out{margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font:14px ui-monospace,Menlo,Consolas,monospace;word-break:break-all;min-height:2.6em}
+.msg{margin-top:8px;font-size:.9rem;min-height:1.3em}
+.msg.bad{color:var(--bad)}.msg.ok{color:var(--ok)}
+.tw{max-height:280px;overflow:auto;margin-top:12px;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font:13px ui-monospace,Menlo,Consolas,monospace}
+th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--line);word-break:break-all}
+th{position:sticky;top:0;background:var(--surface);color:var(--muted);font-weight:600}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>RSA Lab</h1>
+  <p class="sub">Generate a key pair, encrypt a message with the public key, and decrypt it with the private key. Each character is encrypted separately as its character code.</p>
+
+  <section>
+    <h2>1. Generate keys</h2>
+    <label for="bits" id="bitsLabel">Size of each prime: 8 bits</label>
+    <input type="range" id="bits" min="4" max="128" value="8">
+    <div class="row"><button class="primary" id="gen">Generate keys</button></div>
+    <div id="genMsg" class="msg"></div>
+    <dl id="keys" class="hide"></dl>
+    <p class="note" style="margin-top:12px">Each character code must be smaller than the modulus n, or it can't be recovered. Keep primes at 5 bits or more for plain English text; use more bits for emoji or other special symbols.</p>
+  </section>
+
+  <section>
+    <h2>2. Encrypt</h2>
+    <div class="row" style="margin-top:0"><button id="useE">Use my public key</button></div>
+    <label for="eKey">Encryption key (e)</label><input type="text" id="eKey" inputmode="numeric" autocomplete="off">
+    <label for="eMod">Modulus (n)</label><input type="text" id="eMod" inputmode="numeric" autocomplete="off">
+    <label for="eMsg">Message</label><textarea id="eMsg"></textarea>
+    <div class="row"><button class="primary" id="enc">Encrypt</button></div>
+    <div id="encMsg" class="msg"></div>
+    <div id="encBox" class="hide">
+      <div class="out" id="encOut"></div>
+      <div class="row"><button id="copy">Copy</button><button id="send">Send to decrypt</button></div>
+      <div class="tw"><table><thead><tr><th>Char</th><th>Code</th><th>Calculation</th><th>Result</th></tr></thead><tbody id="encRows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Decrypt</h2>
+    <div class="row" style="margin-top:0"><button id="useD">Use my private key</button></div>
+    <label for="dKey">Decryption key (d)</label><input type="text" id="dKey" inputmode="numeric" autocomplete="off">
+    <label for="dMod">Modulus (n)</label><input type="text" id="dMod" inputmode="numeric" autocomplete="off">
+    <label for="dMsg">Encrypted numbers (separated by commas or spaces)</label><textarea id="dMsg"></textarea>
+    <div class="row"><button class="primary" id="dec">Decrypt</button></div>
+    <div id="decMsg" class="msg"></div>
+    <div id="decBox" class="hide">
+      <div class="out" id="decOut"></div>
+      <div class="tw"><table><thead><tr><th>Number</th><th>Calculation</th><th>Code</th><th>Char</th></tr></thead><tbody id="decRows"></tbody></table></div>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var keys=null;
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+  function modpow(b,e,m){var r=1n;b%=m;while(e>0n){if(e&1n)r=r*b%m;b=b*b%m;e>>=1n}return r}
+  function gcd(a,b){while(b){var t=a%b;a=b;b=t}return a}
+  function inv(a,m){var r0=m,r1=a,t0=0n,t1=1n;while(r1){var q=r0/r1,t=r0-q*r1;r0=r1;r1=t;t=t0-q*t1;t0=t1;t1=t}return((t0%m)+m)%m}
+  function rand(bits){
+    var n=Math.ceil(bits/8),b=new Uint8Array(n);crypto.getRandomValues(b);
+    var x=0n;b.forEach(function(v){x=(x<<8n)|BigInt(v)});
+    x&=(1n<<BigInt(bits))-1n;x|=1n<<BigInt(bits-1);return x|1n;
+  }
+  function randBelow(m){return rand(m.toString(2).length+8)%m}
+  var small=[2n,3n,5n,7n,11n,13n,17n,19n,23n,29n,31n,37n];
+  function isPrime(n){
+    if(n<2n)return false;
+    for(var i=0;i<small.length;i++){if(n===small[i])return true;if(n%small[i]===0n)return false}
+    var d=n-1n,s=0;while(!(d&1n)){d>>=1n;s++}
+    for(var k=0;k<20;k++){
+      var a=2n+randBelow(n-3n),x=modpow(a,d,n);
+      if(x===1n||x===n-1n)continue;
+      var ok=false;
+      for(var r=1;r<s;r++){x=x*x%n;if(x===n-1n){ok=true;break}}
+      if(!ok)return false;
+    }
+    return true;
+  }
+  function prime(bits){for(;;){var c=rand(bits);if(isPrime(c))return c}}
+  function msg(id,t,cls){var m=$(id);m.textContent=t;m.className="msg"+(cls?" "+cls:"")}
+  function big(id,label){
+    var v=$(id).value.trim();
+    if(!/^\d+$/.test(v)){msg(label[0],"Enter "+label[1]+" as a whole number.","bad");return null}
+    return BigInt(v);
+  }
+
+  $("bits").oninput=function(){$("bitsLabel").textContent="Size of each prime: "+this.value+" bits (modulus about "+(this.value*2)+" bits)"};
+
+  $("gen").onclick=function(){
+    var bits=+$("bits").value,p=prime(bits),q=prime(bits);
+    if(bits<=4){var t=0;while(p===q&&t++<50)q=prime(bits)}
+    if(p===q){msg("genMsg","The two primes came out equal. Click Generate again.","bad");return}
+    var n=p*q,phi=(p-1n)*(q-1n),e,t2=0;
+    if(phi<=3n){msg("genMsg","Those primes are too small. Click Generate again.","bad");return}
+    do{e=2n+randBelow(phi-2n)}while(gcd(e,phi)!==1n&&t2++<10000);
+    var d=inv(e,phi);
+    keys={p:p,q:q,n:n,phi:phi,e:e,d:d};
+    $("keys").innerHTML=
+      "<dt>Prime p</dt><dd>"+p+"</dd><dt>Prime q</dt><dd>"+q+"</dd>"+
+      "<dt>Modulus n = p × q</dt><dd>"+n+"</dd>"+
+      "<dt>φ = (p−1)(q−1)</dt><dd>"+phi+"</dd>"+
+      "<dt>Public key (e, n)</dt><dd class=\"pub\">e = "+e+"<br>n = "+n+"</dd>"+
+      "<dt>Private key (d, n)</dt><dd class=\"priv\">d = "+d+"<br>n = "+n+"</dd>"+
+      "<dt>Check</dt><dd>e × d mod φ = "+(e*d%phi)+" (should be 1)</dd>";
+    $("keys").classList.remove("hide");
+    msg("genMsg","Keys generated. Modulus n is "+n.toString(2).length+" bits"+(n<=255n?". It's too small for most letters, so try a larger prime size.":"."),n<=255n?"bad":"ok");
+  };
+
+  $("useE").onclick=function(){if(!keys){msg("encMsg","Generate keys first.","bad");return}$("eKey").value=keys.e;$("eMod").value=keys.n};
+  $("useD").onclick=function(){if(!keys){msg("decMsg","Generate keys first.","bad");return}$("dKey").value=keys.d;$("dMod").value=keys.n};
+
+  $("enc").onclick=function(){
+    var k=big("eKey",["encMsg","the encryption key"]);if(k===null)return;
+    var n=big("eMod",["encMsg","the modulus"]);if(n===null)return;
+    if(n<2n){msg("encMsg","The modulus must be at least 2.","bad");return}
+    var chars=Array.from($("eMsg").value);
+    if(!chars.length){msg("encMsg","Type a message to encrypt.","bad");return}
+    var out=[],rows="",bad=0;
+    chars.forEach(function(ch){
+      var c=BigInt(ch.codePointAt(0)),r=modpow(c,k,n);
+      if(c>=n)bad++;
+      out.push(r);
+      rows+="<tr><td>"+esc(ch===" "?"␣":ch)+"</td><td>"+c+"</td><td>"+c+"^"+k+" mod "+n+"</td><td>"+r+"</td></tr>";
+    });
+    $("encOut").textContent=out.join(", ");
+    $("encRows").innerHTML=rows;
+    $("encBox").classList.remove("hide");
+    msg("encMsg",bad?bad+" character(s) have a code ≥ n, so they can't be decrypted correctly. Use a larger modulus.":"Encrypted "+chars.length+" characters.",bad?"bad":"ok");
+  };
+  $("copy").onclick=function(){
+    var t=$("encOut").textContent;
+    try{navigator.clipboard.writeText(t).then(function(){msg("encMsg","Copied.","ok")},function(){msg("encMsg","Copy failed. Select the text and copy it manually.","bad")})}
+    catch(e){msg("encMsg","Copy failed. Select the text and copy it manually.","bad")}
+  };
+  $("send").onclick=function(){
+    $("dMsg").value=$("encOut").textContent;$("dMod").value=$("eMod").value;
+    msg("decMsg","Encrypted numbers and modulus filled in. Enter the decryption key.");$("dKey").focus();
+  };
+
+  $("dec").onclick=function(){
+    var k=big("dKey",["decMsg","the decryption key"]);if(k===null)return;
+    var n=big("dMod",["decMsg","the modulus"]);if(n===null)return;
+    if(n<2n){msg("decMsg","The modulus must be at least 2.","bad");return}
+    var parts=$("dMsg").value.split(/[\s,\[\]]+/).filter(Boolean);
+    if(!parts.length){msg("decMsg","Paste the encrypted numbers to decrypt.","bad");return}
+    if(parts.some(function(x){return !/^\d+$/.test(x)})){msg("decMsg","The encrypted message should contain only numbers separated by commas or spaces.","bad");return}
+    var text="",rows="",bad=0;
+    parts.forEach(function(x){
+      var c=BigInt(x),r=modpow(c,k,n),ch;
+      if(r>1114111n||(r>=55296n&&r<=57343n)||r<32n&&r!==10n){ch="\uFFFD";bad++}else ch=String.fromCodePoint(Number(r));
+      text+=ch;
+      rows+="<tr><td>"+x+"</td><td>"+x+"^"+k+" mod "+n+"</td><td>"+r+"</td><td>"+esc(ch===" "?"␣":ch)+"</td></tr>";
+    });
+    $("decOut").textContent=text;$("decRows").innerHTML=rows;$("decBox").classList.remove("hide");
+    msg("decMsg",bad?bad+" value(s) didn't decode to a readable character. Check the key and modulus.":"Decrypted "+parts.length+" numbers.",bad?"bad":"ok");
+  };
+})();
+</script>
+</body>
+</html>

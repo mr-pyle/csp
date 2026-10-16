@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cryptogram Solver</title>
+<style>
+:root{
+  --bg:#eef2f6;--surface:#fff;--ink:#17212b;--muted:#6b7a8a;--line:#d3dbe4;
+  --accent:#1f5fbf;--accent-ink:#fff;--hit:#e3eefc;--bad:#c23b3b;--bad-bg:#fbe9e9;--bar:#9db8de;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;
+    --accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--bad-bg:#3a1f22;--bar:#35567f;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;
+  --accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--bad-bg:#3a1f22;--bar:#35567f;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}
+h2{font-size:1.05rem;margin:0 0 10px}
+p.sub{margin:0 0 18px;color:var(--muted)}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:15px ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
+#view{display:flex;flex-wrap:wrap;gap:14px 18px;font:20px ui-monospace,Menlo,Consolas,monospace}
+.word{display:flex;flex-direction:column}
+.line{display:flex;letter-spacing:.02em}
+.line.cipher{color:var(--muted)}
+.ch{min-width:1ch;padding:0 1px;border-radius:3px;text-align:center}
+.cipher .ch.l{cursor:pointer}
+.cipher .ch.sel{background:var(--accent);color:var(--accent-ink)}
+.plain .ch.l{color:var(--muted);cursor:pointer}
+.plain .ch.m{color:var(--ink);background:var(--hit);font-weight:700}
+.plain .ch.dup{color:var(--bad);background:var(--bad-bg)}
+.legend{font-size:.85rem;color:var(--muted);margin-top:12px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.cols{grid-template-columns:1fr}}
+.cols section{margin:0}
+.freq{display:grid;gap:3px}
+.fr{display:grid;grid-template-columns:2ch 1fr 6.5ch;gap:8px;align-items:center;cursor:pointer;border-radius:4px;padding:1px 3px;font:14px ui-monospace,Menlo,Consolas,monospace}
+.fr:hover,.fr.sel{background:var(--hit)}
+.fr .bar{height:14px;background:var(--bar);border-radius:3px;min-width:2px}
+.fr .n{text-align:right;color:var(--muted)}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:3px}
+input.one{width:5ch;padding:8px;text-align:center;font:18px ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);text-transform:lowercase}
+#msg{min-height:1.4em;margin-top:10px;font-size:.9rem}
+#msg.bad{color:var(--bad)}
+.table{display:grid;grid-template-columns:repeat(13,1fr);gap:3px;margin-top:6px}
+.cell{border:1px solid var(--line);border-radius:5px;text-align:center;font:13px ui-monospace,Menlo,Consolas,monospace;padding:2px 0}
+.cell b{display:block;font-weight:400;color:var(--muted)}
+.cell span{display:block;min-height:1.3em;font-weight:700}
+.cell.on{background:var(--hit);cursor:pointer}
+.cell.dup span{color:var(--bad)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>Cryptogram Solver</h1>
+  <p class="sub">Paste a substitution-cipher message, study the letter frequencies, then swap letters one at a time until it reads as English.</p>
+
+  <section>
+    <h2>1. Paste the cipher text</h2>
+    <textarea id="input" aria-label="Cipher text" placeholder="Paste the encrypted message here"></textarea>
+    <div class="row"><button class="primary" id="go">Analyze</button><button id="clear">Clear all</button></div>
+  </section>
+
+  <div id="work" class="hide">
+    <section>
+      <h2>2. Cipher text and your progress</h2>
+      <div id="view"></div>
+      <div class="legend">Top row: original cipher text. Bottom row: your current decryption (highlighted = swapped). Click a cipher letter to select it for swapping.</div>
+    </section>
+
+    <div class="cols">
+      <section>
+        <h2>Letter frequency</h2>
+        <div class="freq" id="freq"></div>
+      </section>
+      <section>
+        <h2>3. Swap a letter</h2>
+        <div class="row" style="margin-top:0">
+          <label>Cipher letter<input class="one" id="from" maxlength="1" autocomplete="off"></label>
+          <label>Replace with<input class="one" id="to" maxlength="1" autocomplete="off"></label>
+          <button class="primary" id="swap">Swap</button>
+        </div>
+        <div id="msg" aria-live="polite"></div>
+        <h2 style="margin-top:14px">Your substitution table</h2>
+        <div class="table" id="table"></div>
+        <div class="legend">Click a filled cell to undo that swap. Swapping a letter with itself also undoes it. Red means two cipher letters share the same plaintext letter, but each letter should map 1:1.</div>
+        <div class="row"><button id="reset">Undo all swaps</button></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+  var A="abcdefghijklmnopqrstuvwxyz";
+  var text="", map={}, sel="";
+  var $=function(id){return document.getElementById(id)};
+  function esc(s){return s.replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+  function isL(c){return /[a-z]/.test(c)}
+  function dups(){
+    var seen={},d={};
+    Object.keys(map).forEach(function(k){var v=map[k];(seen[v]=seen[v]||[]).push(k)});
+    Object.keys(seen).forEach(function(v){if(seen[v].length>1)seen[v].forEach(function(k){d[k]=1})});
+    return d;
+  }
+  function render(){
+    var d=dups();
+    var words=text.split(/\s+/).filter(Boolean);
+    $("view").innerHTML=words.map(function(w){
+      var top="",bot="";
+      for(var i=0;i<w.length;i++){
+        var c=w[i],l=isL(c);
+        top+='<span class="ch'+(l?' l':'')+(l&&c===sel?' sel':'')+'" data-c="'+(l?c:'')+'">'+esc(c)+'</span>';
+        if(l&&map[c]) bot+='<span class="ch m'+(d[c]?' dup':'')+'" data-c="'+c+'">'+map[c]+'</span>';
+        else bot+='<span class="ch'+(l?' l':'')+'" data-c="'+(l?c:'')+'">'+esc(c)+'</span>';
+      }
+      return '<div class="word"><div class="line cipher">'+top+'</div><div class="line plain">'+bot+'</div></div>';
+    }).join("");
+    var counts={},total=0;
+    text.split("").forEach(function(c){if(isL(c)){counts[c]=(counts[c]||0)+1;total++}});
+    var order=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]||(a<b?-1:1)});
+    var max=order.length?counts[order[0]]:1;
+    $("freq").innerHTML=order.map(function(c){
+      return '<div class="fr'+(c===sel?' sel':'')+'" data-c="'+c+'"><span>'+c+'</span><span><div class="bar" style="width:'+(counts[c]/max*100)+'%"></div></span><span class="n">'+counts[c]+' · '+Math.round(counts[c]/total*100)+'%</span></div>';
+    }).join("");
+    $("table").innerHTML=A.split("").map(function(c){
+      return '<div class="cell'+(map[c]?' on':'')+(d[c]?' dup':'')+'" data-c="'+c+'" title="'+(map[c]?'Click to undo':'')+'"><b>'+c+'</b><span>'+(map[c]||'')+'</span></div>';
+    }).join("");
+  }
+  function msg(t,bad){var m=$("msg");m.textContent=t;m.className=bad?"bad":""}
+  function select(c){sel=c;$("from").value=c;$("to").focus();render()}
+  function start(){
+    var v=$("input").value.toLowerCase().trim();
+    if(!v){msg("");return}
+    text=v;map={};sel="";$("from").value="";$("to").value="";
+    $("work").classList.remove("hide");msg("");render();
+  }
+  function swap(){
+    var f=$("from").value.toLowerCase(),t=$("to").value.toLowerCase();
+    if(!isL(f)){msg("Enter a cipher letter (a–z) to replace.",true);return}
+    if(!isL(t)){msg("Enter the letter to replace it with (a–z).",true);return}
+    if(text.indexOf(f)<0){msg("The letter \""+f+"\" does not appear in the cipher text.",true);return}
+    if(f===t){delete map[f];msg("Undid the swap for \""+f+"\".")}
+    else{
+      map[f]=t.toUpperCase();
+      var clash=Object.keys(map).filter(function(k){return k!==f&&map[k]===map[f]});
+      msg(clash.length?"Heads up: \""+clash[0]+"\" is already swapped to "+map[f]+". Each letter should map 1:1.":"Swapped "+f+" → "+map[f]+".",clash.length>0);
+    }
+    $("from").value="";$("to").value="";sel="";render();$("from").focus();
+  }
+  $("go").onclick=start;
+  $("clear").onclick=function(){$("input").value="";text="";map={};$("work").classList.add("hide")};
+  $("swap").onclick=swap;
+  $("reset").onclick=function(){map={};sel="";msg("All swaps undone.");render()};
+  ["from","to"].forEach(function(id){$(id).addEventListener("keydown",function(e){if(e.key==="Enter")swap()})});
+  $("from").addEventListener("input",function(){sel=isL($("from").value.toLowerCase())?$("from").value.toLowerCase():"";render();if(sel)$("to").focus()});
+  $("view").onclick=function(e){var c=e.target.getAttribute&&e.target.getAttribute("data-c");if(c)select(c)};
+  $("freq").onclick=function(e){var r=e.target.closest(".fr");if(r)select(r.getAttribute("data-c"))};
+  $("table").onclick=function(e){var r=e.target.closest(".cell");if(r&&map[r.getAttribute("data-c")]){var c=r.getAttribute("data-c");delete map[c];msg("Undid the swap for \""+c+"\".");render()}};
+})();
+</script>
+</body>
+</html>
