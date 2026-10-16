@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RSA Cracker</title>
+<style>
+:root{--bg:#eef2f6;--surface:#fff;--ink:#17212b;--muted:#6b7a8a;--line:#d3dbe4;--accent:#1f5fbf;--accent-ink:#fff;--hit:#e3eefc;--bad:#c23b3b;--ok:#1d7a46;--bar:#9db8de;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;--accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--ok:#6fd49b;--bar:#35567f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1620;--surface:#18222e;--ink:#e6edf4;--muted:#8fa0b2;--line:#2b3a4b;--accent:#6aa5f5;--accent-ink:#0b1420;--hit:#1c3250;--bad:#ff8a8a;--ok:#6fd49b;--bar:#35567f;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}h2{font-size:1.1rem;margin:0 0 6px}p{margin:0 0 10px}
+.sub,.note{color:var(--muted);font-size:.92rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:3px;margin-top:10px}
+input[type=text],textarea,select{width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:14px ui-monospace,Menlo,Consolas,monospace}
+textarea{min-height:64px;resize:vertical}
+button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end}
+.row label{margin-top:0}
+.msg{margin-top:8px;font-size:.9rem;min-height:1.3em}.msg.bad{color:var(--bad)}.msg.ok{color:var(--ok)}
+canvas{width:100%;display:block;margin-top:12px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.stat b{display:block;font:15px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.stat span{font-size:.78rem;color:var(--muted)}
+.res{margin-top:12px;padding:10px;border:1px solid var(--ok);border-radius:6px;background:var(--hit);font:14px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.res .plain{font-size:1.15rem;font-weight:700;margin-top:6px}
+table{border-collapse:collapse;width:100%;font:13px ui-monospace,Menlo,Consolas,monospace;margin-top:12px}
+th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--muted)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>RSA Cracker</h1>
+  <p class="sub">An attacker only sees the public key (e, n) and the cipher text. To get the private key they must factor n. Watch brute force do it, then see why bigger keys make it hopeless.</p>
+
+  <section>
+    <h2>1. Target</h2>
+    <p class="note">Paste a public key and cipher text from the RSA Lab, or load the example.</p>
+    <label for="e">Public exponent (e)</label><input type="text" id="e" inputmode="numeric" autocomplete="off">
+    <label for="n">Modulus (n)</label><input type="text" id="n" inputmode="numeric" autocomplete="off">
+    <label for="ct">Cipher text (numbers separated by commas or spaces)</label><textarea id="ct"></textarea>
+    <div class="row"><button id="ex">Load example</button></div>
+  </section>
+
+  <section>
+    <h2>2. Brute-force attack</h2>
+    <p class="note">The attacker tries dividing n by 2, then every odd number up to √n. Each square is a block of candidates: blue means tested, green marks the factor.</p>
+    <div class="row">
+      <label for="spd">Speed<select id="spd"><option value="1">Slow motion</option><option value="150" selected>Normal</option><option value="0">Full speed</option></select></label>
+      <button class="primary" id="go">Crack it</button><button id="stop" disabled>Stop</button>
+    </div>
+    <div id="msg" class="msg" aria-live="polite"></div>
+    <canvas id="grid" height="60"></canvas>
+    <div class="stats">
+      <div class="stat"><span>Trying divisor</span><b id="sCur">-</b></div>
+      <div class="stat"><span>Divisions done / total</span><b id="sCnt">-</b></div>
+      <div class="stat"><span>Compute time</span><b id="sTime">-</b></div>
+      <div class="stat"><span>Estimated worst case</span><b id="sEta">-</b></div>
+    </div>
+    <div id="res" class="res hide"></div>
+  </section>
+
+  <section>
+    <h2>3. How fast does the work grow?</h2>
+    <p class="note">This runs the attack on random keys of increasing size and counts the divisions needed. The vertical axis is logarithmic, so a straight rising line means the work multiplies at every step.</p>
+    <div class="row"><button class="primary" id="bench">Run experiment</button></div>
+    <canvas id="chart" height="240"></canvas>
+    <table id="bt" class="hide"><thead><tr><th>Key size (bits of n)</th><th>Divisions</th><th>Time</th></tr></thead><tbody></tbody></table>
+    <div id="proj" class="hide">
+      <h2 style="margin-top:16px">If your computer kept this pace…</h2>
+      <p class="note" id="rate"></p>
+      <table><thead><tr><th>Key size</th><th>Worst-case time to factor</th></tr></thead><tbody id="pb"></tbody></table>
+      <p class="note" style="margin-top:10px">Real RSA keys today are 2048 bits or more. Each extra 2 bits doubles the work.</p>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  function modpow(b,e,m){var r=1n;b%=m;while(e>0n){if(e&1n)r=r*b%m;b=b*b%m;e>>=1n}return r}
+  function inv(a,m){var r0=m,r1=a%m,t0=0n,t1=1n;while(r1){var q=r0/r1,t=r0-q*r1;r0=r1;r1=t;t=t0-q*t1;t0=t1;t1=t}return r0===1n?((t0%m)+m)%m:null}
+  function isqrt(n){if(n<2n)return n;var x=1n<<BigInt(Math.ceil(n.toString(2).length/2));for(;;){var y=(x+n/x)>>1n;if(y>=x)return x;x=y}}
+  function msg(t,c){var m=$("msg");m.textContent=t;m.className="msg"+(c?" "+c:"")}
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+  function fmtMs(ms){return ms<1?ms.toFixed(3)+" ms":ms<1000?ms.toFixed(1)+" ms":(ms/1000).toFixed(2)+" s"}
+  function fmtN(x){return typeof x==="bigint"?x.toLocaleString():Math.round(x).toLocaleString()}
+  function fmtLog(l){ // l = log10(seconds)
+    if(l<-3)return "instant";
+    if(l<0)return (Math.pow(10,l)*1000).toPrecision(2)+" ms";
+    var s=Math.pow(10,l);
+    if(s<60)return s.toPrecision(2)+" seconds";
+    if(s<3600)return (s/60).toPrecision(2)+" minutes";
+    if(s<86400)return (s/3600).toPrecision(2)+" hours";
+    if(s<3.15e7)return (s/86400).toPrecision(2)+" days";
+    var ly=l-Math.log10(3.15e7);
+    if(ly<6)return Math.pow(10,ly).toPrecision(2)+" years";
+    return "10^"+Math.round(ly)+" years"+(ly>10.15?" (universe is ~10^10)":"");
+  }
+
+  // ----- example -----
+  $("ex").onclick=function(){
+    var e=28631n,n=39283n,m="Hi RSA";
+    $("e").value=e;$("n").value=n;
+    $("ct").value=Array.from(m).map(function(c){return modpow(BigInt(c.codePointAt(0)),e,n)}).join(", ");
+    msg("Example loaded. Click Crack it.");
+  };
+
+  // ----- attack -----
+  var st=null,raf=0;
+  function draw(){
+    var cv=$("grid"),w=cv.clientWidth,cell=10,cols=Math.max(1,Math.floor(w/cell)),rows=Math.ceil(st.cells/cols);
+    cv.width=w;cv.height=rows*cell;var g=cv.getContext("2d"),
+        done=Math.floor(st.tested/st.bin),cT=css("--bar"),cU=css("--line"),cF=css("--ok"),cA=css("--accent");
+    for(var i=0;i<st.cells;i++){
+      g.fillStyle=i<done?cT:cU;
+      if(i===done&&!st.found)g.fillStyle=cA;
+      if(st.found&&i===Math.min(st.cells-1,Math.floor((st.tested-1)/st.bin)))g.fillStyle=cF;
+      g.fillRect((i%cols)*cell+1,Math.floor(i/cols)*cell+1,cell-2,cell-2);
+    }
+  }
+  function stats(){
+    $("sCur").textContent=st.found?fmtN(st.p):fmtN(st.c);
+    $("sCnt").textContent=fmtN(st.tested)+" / "+fmtN(st.total);
+    $("sTime").textContent=fmtMs(st.ms);
+    var rate=st.ms>0&&st.tested>50?st.tested/st.ms:0;
+    $("sEta").textContent=rate?fmtMs(st.total/rate):"-";
+  }
+  function finish(){
+    $("go").disabled=false;$("stop").disabled=true;
+    stats();draw();
+  }
+  function success(){
+    var n=st.nb,p=st.p,q=n/p,phi=(p-1n)*(q-1n),e=st.e,d=inv(e,phi);
+    if(d===null){msg("Found the factors, but e isn't coprime to φ, so this isn't a valid RSA key.","bad");return}
+    var out="";
+    st.ct.forEach(function(x){var r=modpow(x,d,n);out+=(r>1114111n||r<10n)?"\uFFFD":String.fromCodePoint(Number(r))});
+    var r=$("res");r.classList.remove("hide");
+    r.innerHTML="Factors: p = "+p+", q = "+q+"<br>φ = (p−1)(q−1) = "+phi+"<br>Private key: d = "+d+" (inverse of e mod φ)"+
+      (st.ct.length?"<div class=\"plain\"></div>":"");
+    if(st.ct.length)r.querySelector(".plain").textContent="Decrypted: "+out;
+    msg("Cracked in "+fmtMs(st.ms)+" of compute time after "+fmtN(st.tested)+" divisions.","ok");
+  }
+  function step(){
+    if(!st.running)return;
+    var speed=+$("spd").value,t0=performance.now(),count=speed||Infinity,i=0;
+    if(!st.big){
+      var n=st.nn,c=st.c,lim=st.lim;
+      while(i<count&&c<=lim){
+        st.tested++;
+        if(n%c===0){st.found=true;st.p=BigInt(c);break}
+        c=c===2?3:c+2;i++;
+        if(!speed&&(i&8191)===0&&performance.now()-t0>12)break;
+      }
+      st.c=c;
+    }else{
+      var nb=st.nb,cb=BigInt(st.c),limb=st.limb;
+      while(i<count&&cb<=limb){
+        st.tested++;
+        if(nb%cb===0n){st.found=true;st.p=cb;break}
+        cb=cb===2n?3n:cb+2n;i++;
+        if(!speed&&(i&255)===0&&performance.now()-t0>12)break;
+      }
+      st.c=cb;
+    }
+    st.ms+=performance.now()-t0;
+    stats();draw();
+    if(st.found){st.running=false;finish();success();return}
+    if((st.big?BigInt(st.c)>st.limb:st.c>st.lim)){st.running=false;finish();msg("No factor found, so n is prime (or isn't a product of two primes). Check the number.","bad");return}
+    raf=requestAnimationFrame(step);
+  }
+  $("go").onclick=function(){
+    cancelAnimationFrame(raf);$("res").classList.add("hide");
+    var ev=$("e").value.trim(),nv=$("n").value.trim();
+    if(!/^\d+$/.test(ev)||!/^\d+$/.test(nv)){msg("Enter e and n as whole numbers.","bad");return}
+    var parts=$("ct").value.split(/[\s,\[\]]+/).filter(Boolean);
+    if(parts.some(function(x){return !/^\d+$/.test(x)})){msg("Cipher text should contain only numbers.","bad");return}
+    var nb=BigInt(nv);
+    if(nb<4n){msg("n must be at least 4.","bad");return}
+    var limb=isqrt(nb),big=nb>9007199254740991n,total=Number(limb>=2n?(limb-1n)/2n+1n:0n);
+    st={nb:nb,nn:big?0:Number(nb),big:big,e:BigInt(ev),ct:parts.map(BigInt),limb:limb,lim:Number(limb),c:2,tested:0,ms:0,found:false,running:true,total:total};
+    st.cells=Math.max(1,Math.min(1200,total));st.bin=total/st.cells;
+    $("go").disabled=true;$("stop").disabled=false;
+    msg(big?"n is bigger than 53 bits, so the browser uses slower big-number math. Press Stop at any time.":"Searching for a factor…");
+    raf=requestAnimationFrame(step);
+  };
+  $("stop").onclick=function(){if(st){st.running=false;cancelAnimationFrame(raf);finish();msg("Stopped after "+fmtN(st.tested)+" divisions.")}};
+
+  // ----- scaling experiment -----
+  var pts=[];
+  function isP(n){if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true}
+  function rp(bits){for(;;){var x=Math.floor(Math.random()*Math.pow(2,bits-1))+Math.pow(2,bits-1);x|=1;if(isP(x))return x}}
+  function chart(){
+    var cv=$("chart"),w=cv.clientWidth,h=240;cv.width=w;cv.height=h;var g=cv.getContext("2d");
+    var L=48,R=12,T=12,B=30,pw=w-L-R,ph=h-T-B,maxL=8,minB=14,maxB=54;
+    g.font="11px system-ui";g.fillStyle=css("--muted");g.strokeStyle=css("--line");
+    for(var k=0;k<=maxL;k+=2){var y=T+ph-(k/maxL)*ph;g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillText("10^"+k,6,y+4)}
+    for(var b=16;b<=52;b+=12){var x=L+(b-minB)/(maxB-minB)*pw;g.fillText(b+" bits",x-16,h-10)}
+    g.save();g.translate(10,T+ph/2);g.rotate(-Math.PI/2);g.fillText("divisions needed",-40,-30);g.restore();
+    if(!pts.length)return;
+    g.strokeStyle=css("--accent");g.fillStyle=css("--accent");g.lineWidth=2;g.beginPath();
+    pts.forEach(function(p,i){var x=L+(p.b-minB)/(maxB-minB)*pw,y=T+ph-(Math.log10(Math.max(p.t,1))/maxL)*ph;i?g.lineTo(x,y):g.moveTo(x,y)});
+    g.stroke();
+    pts.forEach(function(p){var x=L+(p.b-minB)/(maxB-minB)*pw,y=T+ph-(Math.log10(Math.max(p.t,1))/maxL)*ph;g.beginPath();g.arc(x,y,3.5,0,7);g.fill()});
+  }
+  $("bench").onclick=function(){
+    var btn=this,sizes=[16,20,24,28,32,36,40,44,48,52],i=0;pts=[];btn.disabled=true;
+    $("bt").classList.remove("hide");$("bt").querySelector("tbody").innerHTML="";chart();
+    function run(){
+      if(i>=sizes.length){btn.disabled=false;project();return}
+      var b=sizes[i++],h=b/2,p=rp(h),q=rp(h);while(q===p)q=rp(h);
+      var n=p*q,t0=performance.now(),c=2,cnt=0;
+      for(;;){cnt++;if(n%c===0)break;c=c===2?3:c+2}
+      var ms=performance.now()-t0;
+      pts.push({b:b,t:cnt,ms:ms});chart();
+      var tr=document.createElement("tr");tr.innerHTML="<td>"+b+"</td><td>"+cnt.toLocaleString()+"</td><td>"+fmtMs(ms)+"</td>";
+      $("bt").querySelector("tbody").appendChild(tr);
+      setTimeout(run,30);
+    }
+    setTimeout(run,30);
+  };
+  function project(){
+    var tot=0,ms=0;pts.slice(-3).forEach(function(p){tot+=p.t;ms+=p.ms});
+    var rate=tot/Math.max(ms,0.001); // divisions per ms
+    $("rate").textContent="Measured pace: about "+Math.round(rate).toLocaleString()+" divisions per millisecond in this browser.";
+    var rows="";[64,128,256,512,1024,2048].forEach(function(b){
+      var l=(b/2-1)*Math.log10(2)-Math.log10(rate)-3;
+      rows+="<tr><td>"+b+" bits</td><td>"+fmtLog(l)+"</td></tr>";
+    });
+    $("pb").innerHTML=rows;$("proj").classList.remove("hide");
+  }
+  window.addEventListener("resize",function(){chart();if(st)draw()});
+  chart();
+})();
+</script>
+</body>
+</html>
