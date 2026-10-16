@@ -72,8 +72,8 @@ th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--line)}th{col
 
   <section>
     <h2>3. How fast does the work grow?</h2>
-    <p class="note">This runs the attack on random keys of increasing size and counts the divisions needed. The vertical axis is logarithmic, so a straight rising line means the work multiplies at every step.</p>
-    <div class="row"><button class="primary" id="bench">Run experiment</button></div>
+    <p class="note">This runs the attack on random keys of increasing size and counts the divisions needed. Switch the vertical axis between logarithmic and linear: on a log scale a straight rising line means the work multiplies at every step, while on a linear scale the same growth shoots upward like a hockey stick.</p>
+    <div class="row"><button class="primary" id="bench">Run experiment</button><label for="scale">Vertical scale<select id="scale"><option value="log" selected>Logarithmic</option><option value="lin">Linear</option></select></label></div>
     <canvas id="chart" height="240"></canvas>
     <table id="bt" class="hide"><thead><tr><th>Key size (bits of n)</th><th>Divisions</th><th>Time</th></tr></thead><tbody></tbody></table>
     <div id="proj" class="hide">
@@ -201,16 +201,21 @@ th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--line)}th{col
   function rp(bits){for(;;){var x=Math.floor(Math.random()*Math.pow(2,bits-1))+Math.pow(2,bits-1);x|=1;if(isP(x))return x}}
   function chart(){
     var cv=$("chart"),w=cv.clientWidth,h=240;cv.width=w;cv.height=h;var g=cv.getContext("2d");
-    var L=48,R=12,T=12,B=30,pw=w-L-R,ph=h-T-B,maxL=8,minB=14,maxB=54;
+    var L=56,R=12,T=12,B=30,pw=w-L-R,ph=h-T-B,maxL=8,minB=14,maxB=54,lin=$("scale").value==="lin",mv=pts.length?1:1e6;
+    pts.forEach(function(p){mv=Math.max(mv,p.t)});
+    var mag=Math.pow(10,Math.floor(Math.log10(mv))),fr=mv/mag,nice=(fr<=1?1:fr<=2?2:fr<=5?5:10)*mag;
+    function yf(t){return T+ph-(lin?t/nice:Math.log10(Math.max(t,1))/maxL)*ph}
+    function short(v){return v>=1e6?+(v/1e6).toFixed(2)+"M":v>=1e3?+(v/1e3).toFixed(2)+"k":""+v}
     g.font="11px system-ui";g.fillStyle=css("--muted");g.strokeStyle=css("--line");
-    for(var k=0;k<=maxL;k+=2){var y=T+ph-(k/maxL)*ph;g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillText("10^"+k,6,y+4)}
+    var ticks=lin?[0,1,2,3,4].map(function(k){return nice*k/4}):[0,2,4,6,8];
+    ticks.forEach(function(v){var y=lin?yf(v):T+ph-(v/maxL)*ph;g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillText(lin?short(v):"10^"+v,6,y+4)});
     for(var b=16;b<=52;b+=12){var x=L+(b-minB)/(maxB-minB)*pw;g.fillText(b+" bits",x-16,h-10)}
     g.save();g.translate(10,T+ph/2);g.rotate(-Math.PI/2);g.fillText("divisions needed",-40,-30);g.restore();
     if(!pts.length)return;
     g.strokeStyle=css("--accent");g.fillStyle=css("--accent");g.lineWidth=2;g.beginPath();
-    pts.forEach(function(p,i){var x=L+(p.b-minB)/(maxB-minB)*pw,y=T+ph-(Math.log10(Math.max(p.t,1))/maxL)*ph;i?g.lineTo(x,y):g.moveTo(x,y)});
+    pts.forEach(function(p,i){var x=L+(p.b-minB)/(maxB-minB)*pw,y=yf(p.t);i?g.lineTo(x,y):g.moveTo(x,y)});
     g.stroke();
-    pts.forEach(function(p){var x=L+(p.b-minB)/(maxB-minB)*pw,y=T+ph-(Math.log10(Math.max(p.t,1))/maxL)*ph;g.beginPath();g.arc(x,y,3.5,0,7);g.fill()});
+    pts.forEach(function(p){var x=L+(p.b-minB)/(maxB-minB)*pw,y=yf(p.t);g.beginPath();g.arc(x,y,3.5,0,7);g.fill()});
   }
   $("bench").onclick=function(){
     var btn=this,sizes=[16,20,24,28,32,36,40,44,48,52],i=0;pts=[];btn.disabled=true;
@@ -239,6 +244,7 @@ th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--line)}th{col
     $("pb").innerHTML=rows;$("proj").classList.remove("hide");
   }
   window.addEventListener("resize",function(){chart();if(st)draw()});
+  $("scale").onchange=chart;
   chart();
 })();
 </script>
