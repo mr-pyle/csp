@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Typist - Arcade Typing Game</title>
+    <!-- Tailwind CSS for modern responsive UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for arcade / playful typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .arcade-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+        /* Custom scrollbar and animations */
+        .key-btn {
+            transition: transform 0.08s ease, background-color 0.15s ease, box-shadow 0.08s ease;
+        }
+        .key-btn:active, .key-btn.active-key {
+            transform: translateY(2px) scale(0.96);
+        }
+        /* Glowing effects for active fruit keys */
+        .key-active-tree {
+            background-color: #fef08a !important;
+            color: #854d0e !important;
+            border-color: #eab308 !important;
+            box-shadow: 0 0 12px rgba(234, 179, 8, 0.6);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-2 sm:p-4">
+
+    <!-- Top Header -->
+    <header class="w-full max-w-4xl flex items-center justify-between my-2 px-2">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-500 border-2 border-red-300 flex items-center justify-center text-xl shadow-lg">
+                🍎
+            </div>
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-wide text-amber-400 drop-shadow-md">Fruit Typist</h1>
+                <p class="text-xs sm:text-sm text-slate-400">Type the letter on the fruits before they decay!</p>
+            </div>
+        </div>
+
+        <!-- Controls / Audio Toggle -->
+        <div class="flex items-center gap-2">
+            <button id="audio-toggle" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition shadow">
+                <span id="audio-icon">🔊</span>
+                <span id="audio-text" class="hidden sm:inline">Sound ON</span>
+            </button>
+            <button id="restart-btn" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-2 rounded-xl text-xs sm:text-sm transition shadow flex items-center gap-1">
+                🔄 Restart
+            </button>
+        </div>
+    </header>
+
+    <!-- HUD Stats Bar -->
+    <section class="w-full max-w-4xl bg-slate-800/90 backdrop-blur border border-slate-700 rounded-2xl p-3 mb-3 shadow-xl grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div class="bg-slate-900/70 p-2 rounded-xl border border-emerald-500/30">
+            <div class="text-xs text-emerald-400 uppercase tracking-wider font-semibold">Hits</div>
+            <div id="stat-hits" class="text-xl sm:text-2xl font-bold text-emerald-300">0</div>
+        </div>
+        <div class="bg-slate-900/70 p-2 rounded-xl border border-rose-500/30">
+            <div class="text-xs text-rose-400 uppercase tracking-wider font-semibold">Misses</div>
+            <div id="stat-misses" class="text-xl sm:text-2xl font-bold text-rose-300">0</div>
+        </div>
+        <div class="bg-slate-900/70 p-2 rounded-xl border border-amber-500/30">
+            <div class="text-xs text-amber-400 uppercase tracking-wider font-semibold">Queue Left</div>
+            <div id="stat-queue" class="text-xl sm:text-2xl font-bold text-amber-300">21 / 26</div>
+        </div>
+        <div class="bg-slate-900/70 p-2 rounded-xl border border-cyan-500/30">
+            <div class="text-xs text-cyan-400 uppercase tracking-wider font-semibold">Accuracy</div>
+            <div id="stat-accuracy" class="text-xl sm:text-2xl font-bold text-cyan-300">100%</div>
+        </div>
+    </section>
+
+    <!-- Game Canvas Area & Modal Container -->
+    <main class="relative w-full max-w-4xl flex flex-col items-center">
+        <!-- Canvas Container -->
+        <div class="relative w-full aspect-[7/5] bg-slate-950 rounded-2xl overflow-hidden border-4 border-amber-900/80 shadow-2xl">
+            <canvas id="gameCanvas" width="700" height="500" class="w-full h-full block cursor-crosshair"></canvas>
+
+            <!-- Overlay Screen (Start / Game Over / Pause) -->
+            <div id="game-overlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10 transition-opacity duration-300">
+                <!-- Start View -->
+                <div id="overlay-start-content" class="flex flex-col items-center max-w-md">
+                    <div class="text-5xl mb-4 animate-bounce">🍎 🍐</div>
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-amber-400 mb-2">Orchard Typing Challenge</h2>
+                    <p class="text-slate-300 text-sm sm:text-base mb-6 leading-relaxed">
+                        Match the letters hanging on the fruits! Type the matching key to pick the fruit. Typing wrong keys will trigger a flash shock and record a miss!
+                    </p>
+                    <button id="start-game-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-lg px-8 py-3 rounded-2xl shadow-lg transition transform hover:scale-105 active:scale-95">
+                        Start Game 🚀
+                    </button>
+                </div>
+
+                <!-- Game Over View (Hidden initially) -->
+                <div id="overlay-gameover-content" class="hidden flex flex-col items-center max-w-md">
+                    <div id="gameover-icon" class="text-6xl mb-3">🏆</div>
+                    <h2 id="gameover-title" class="text-3xl font-extrabold text-amber-400 mb-1">Harvest Complete!</h2>
+                    <p id="gameover-subtitle" class="text-slate-300 text-sm mb-6">You picked all letters in the orchard!</p>
+                    
+                    <div class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-4 mb-6 grid grid-cols-2 gap-3 text-left">
+                        <div>
+                            <span class="text-xs text-slate-400 block">Total Hits</span>
+                            <span id="final-hits" class="text-xl font-bold text-emerald-400">0</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block">Total Misses</span>
+                            <span id="final-misses" class="text-xl font-bold text-rose-400">0</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block">Final Accuracy</span>
+                            <span id="final-accuracy" class="text-xl font-bold text-cyan-400">100%</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-400 block">Rating</span>
+                            <span id="final-rating" class="text-xl font-bold text-amber-400">Master</span>
+                        </div>
+                    </div>
+
+                    <button id="play-again-btn" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-lg px-8 py-3 rounded-2xl shadow-lg transition transform hover:scale-105 active:scale-95">
+                        Play Again 🔄
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Virtual On-Screen Keyboard for Mobile / Touch Users -->
+    <section class="w-full max-w-4xl mt-3 mb-2 bg-slate-800/80 border border-slate-700/60 rounded-2xl p-2 sm:p-3 shadow-lg">
+        <div class="text-xs text-slate-400 text-center mb-2 font-medium">On-Screen Keyboard (Touch or Click)</div>
+        <div class="flex flex-col gap-1.5 items-center">
+            <!-- Row 1 -->
+            <div id="kb-row-1" class="flex justify-center gap-1 sm:gap-1.5 w-full"></div>
+            <!-- Row 2 -->
+            <div id="kb-row-2" class="flex justify-center gap-1 sm:gap-1.5 w-full"></div>
+            <!-- Row 3 -->
+            <div id="kb-row-3" class="flex justify-center gap-1 sm:gap-1.5 w-full"></div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-xs text-slate-500 py-2 text-center">
+        Fruit Typing Game &bull; Created with HTML5 Canvas & Web Audio API
+    </footer>
+
+    <!-- JavaScript Game Engine -->
+    <script>
+        /**
+         * FRUIT TYPING GAME ENGINE
+         * Converted from Python Turtle logic to HTML5 Canvas
+         */
+
+        // Canvas & Context Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Element References
+        const overlay = document.getElementById('game-overlay');
+        const startContent = document.getElementById('overlay-start-content');
+        const gameoverContent = document.getElementById('overlay-gameover-content');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playAgainBtn = document.getElementById('play-again-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const audioToggle = document.getElementById('audio-toggle');
+        const audioIcon = document.getElementById('audio-icon');
+        const audioText = document.getElementById('audio-text');
+
+        // HUD Elements
+        const elHits = document.getElementById('stat-hits');
+        const elMisses = document.getElementById('stat-misses');
+        const elQueue = document.getElementById('stat-queue');
+        const elAccuracy = document.getElementById('stat-accuracy');
+
+        // Game Constants & Configuration
+        const MAX_ACTIVE_FRUITS = 5;
+        const GROUND_Y = 420;
+        const CANVAS_WIDTH = 700;
+        const CANVAS_HEIGHT = 500;
+
+        // Flash Colors for Missed Keys (from original Python script)
+        const BAD_COLORS = [
+            "magenta", "lime", "yellow", "cyan", "red", 
+            "chartreuse", "orange", "purple", "olive", "maroon"
+        ];
+
+        // Web Audio Synthesizer State
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'hit') {
+                // Happy high chime
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.12); // A5
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'miss') {
+                // Low error buzz
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(90, now + 0.2);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'land') {
+                // Soft thud when fruit reaches ground
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'win') {
+                // Victory fanfare
+                const freqs = [523.25, 659.25, 783.99, 1046.50];
+                freqs.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    const startTime = now + idx * 0.08;
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, startTime);
+                    gain.gain.setValueAtTime(0.2, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.25);
+                });
+            }
+        }
+
+        // Game State Variables
+        let gameState = 'START'; // 'START' | 'PLAYING' | 'GAMEOVER'
+        let allLetters = [];
+        let activeFruits = [];
+        let hitKeys = 0;
+        let missedKeys = 0;
+
+        // Visual FX Variables
+        let flashEffect = {
+            active: false,
+            colorIndex: 0,
+            timer: 0,
+            interval: 3 // frame count per color
+        };
+
+        let floatingTexts = [];
+        let particles = [];
+        let animFrameId = null;
+
+        // Class representing a Fruit Object
+        class Fruit {
+            constructor(letter, x, y, fruitType = 'apple') {
+                this.id = Math.random().toString(36).substring(2, 9);
+                this.letter = letter;
+                this.x = x;
+                this.y = y;
+                this.targetY = y;
+                this.type = fruitType; // 'apple' | 'pear'
+                this.state = 'hanging'; // 'hanging' | 'falling' | 'ground'
+                this.vy = 0;
+                this.gravity = 0.8;
+                this.swayOffset = Math.random() * Math.PI * 2;
+                this.radius = 28;
+                this.scaleX = 1;
+                this.scaleY = 1;
+                this.squishTimer = 0;
+            }
+
+            update(time) {
+                if (this.state === 'hanging') {
+                    // Gentle wind swaying effect
+                    this.y = this.targetY + Math.sin(time * 0.003 + this.swayOffset) * 4;
+                } else if (this.state === 'falling') {
+                    // Drop physics
+                    this.vy += this.gravity;
+                    this.y += this.vy;
+
+                    if (this.y >= GROUND_Y) {
+                        this.y = GROUND_Y;
+                        this.state = 'ground';
+                        this.scaleX = 1.3;
+                        this.scaleY = 0.7;
+                        this.squishTimer = 10;
+                        playSound('land');
+                        createJuiceParticles(this.x, this.y, this.type);
+                    }
+                } else if (this.state === 'ground') {
+                    // Recover from squish
+                    if (this.squishTimer > 0) {
+                        this.squishTimer--;
+                        this.scaleX += (1 - this.scaleX) * 0.2;
+                        this.scaleY += (1 - this.scaleY) * 0.2;
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(this.scaleX, this.scaleY);
+
+                if (this.type === 'apple') {
+                    // Draw Apple Graphic
+                    // Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, this.radius + 2, this.radius * 0.7, 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Stem
+                    ctx.strokeStyle = '#5c3d11';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.radius + 4);
+                    ctx.quadraticCurveTo(5, -this.radius - 10, 8, -this.radius - 14);
+                    ctx.stroke();
+
+                    // Leaf
+                    ctx.fillStyle = '#4ade80';
+                    ctx.beginPath();
+                    ctx.ellipse(6, -this.radius - 8, 8, 4, Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Fruit Body Gradient
+                    const grad = ctx.createRadialGradient(-6, -6, 2, 0, 0, this.radius);
+                    grad.addColorStop(0, '#ff6b6b');
+                    grad.addColorStop(0.7, '#ee5253');
+                    grad.addColorStop(1, '#a71d2a');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    // Double lobed apple shape
+                    ctx.arc(-10, -4, 18, 0, Math.PI * 2);
+                    ctx.arc(10, -4, 18, 0, Math.PI * 2);
+                    ctx.arc(0, 8, 20, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Glossy Highlight
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(-10, -12, 6, 3, -Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else {
+                    // Draw Pear Graphic
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, this.radius + 4, this.radius * 0.6, 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Stem
+                    ctx.strokeStyle = '#422a0c';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.radius + 2);
+                    ctx.quadraticCurveTo(-4, -this.radius - 10, -6, -this.radius - 14);
+                    ctx.stroke();
+
+                    // Leaf
+                    ctx.fillStyle = '#22c55e';
+                    ctx.beginPath();
+                    ctx.ellipse(-6, -this.radius - 8, 7, 4, -Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Pear Gradient
+                    const grad = ctx.createRadialGradient(-4, -4, 2, 0, 0, this.radius + 4);
+                    grad.addColorStop(0, '#fef08a');
+                    grad.addColorStop(0.6, '#eab308');
+                    grad.addColorStop(1, '#ca8a04');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    // Pear bulb shape
+                    ctx.arc(0, -10, 14, 0, Math.PI * 2);
+                    ctx.arc(0, 8, 22, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Highlight
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(-6, -12, 5, 2.5, -Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw Assigned Letter (Bold White Text with Shadow)
+                if (this.letter) {
+                    ctx.font = 'bold 26px "Fredoka", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    // Dark Text Stroke/Shadow for maximum legibility
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.strokeText(this.letter.toUpperCase(), 0, 2);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(this.letter.toUpperCase(), 0, 2);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // Initialize / Shuffle Alphabet Queue
+        function generateShuffledAlphabet() {
+            const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+            for (let i = letters.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [letters[i], letters[j]] = [letters[j], letters[i]];
+            }
+            return letters;
+        }
+
+        // Spawn or Reset a Fruit Object
+        function resetFruit(existingFruit = null) {
+            if (allLetters.length > 0) {
+                const newLetter = allLetters.pop();
+                const newX = Math.floor(Math.random() * (CANVAS_WIDTH - 120)) + 60; // 60 to 640
+                const newY = Math.floor(Math.random() * 140) + 90; // 90 to 230
+                const type = Math.random() > 0.5 ? 'apple' : 'pear';
+
+                if (existingFruit) {
+                    existingFruit.letter = newLetter;
+                    existingFruit.x = newX;
+                    existingFruit.y = newY;
+                    existingFruit.targetY = newY;
+                    existingFruit.type = type;
+                    existingFruit.state = 'hanging';
+                    existingFruit.vy = 0;
+                    existingFruit.scaleX = 1;
+                    existingFruit.scaleY = 1;
+                } else {
+                    const fruit = new Fruit(newLetter, newX, newY, type);
+                    activeFruits.push(fruit);
+                }
+            }
+            updateHUD();
+        }
+
+        // Key Press Logic (Matching drop_fruit from Python)
+        function handleKeyPress(typedKey) {
+            if (gameState !== 'PLAYING') return;
+
+            const key = typedKey.toLowerCase();
+            if (!/^[a-z]$/.test(key)) return;
+
+            // Highlight Key on On-Screen Keyboard
+            animateKeyButton(key);
+
+            // Find index of matching fruit hanging on tree
+            const matchingIndex = activeFruits.findIndex(
+                f => f.letter === key && f.state === 'hanging'
+            );
+
+            if (matchingIndex !== -1) {
+                // HIT!
+                hitKeys++;
+                playSound('hit');
+
+                const fruit = activeFruits[matchingIndex];
+                fruit.state = 'falling';
+                fruit.vy = 2; // Initial push
+
+                // Spawn floating score marker
+                createFloatingText('+1', fruit.x, fruit.y - 20, '#4ade80');
+
+                // Recycle this slot with new letter from queue
+                setTimeout(() => {
+                    // Remove old fruit from active list and replace with new letter
+                    const index = activeFruits.indexOf(fruit);
+                    if (index !== -1) {
+                        activeFruits.splice(index, 1);
+                    }
+                    resetFruit();
+                    checkGameOverCondition();
+                }, 400);
+
+            } else {
+                // MISS!
+                missedKeys++;
+                playSound('miss');
+
+                // Trigger flashing background shock
+                triggerFlashEffect();
+
+                // Create Miss floating text
+                createFloatingText('MISS!', CANVAS_WIDTH / 2, 100, '#f43f5e');
+            }
+
+            updateHUD();
+            updateVirtualKeyboardHighlights();
+            checkGameOverCondition();
+        }
+
+        // Check if game is complete
+        function checkGameOverCondition() {
+            // Game is complete when no letters remain in queue AND all active fruits are gone or harvested
+            if (allLetters.length === 0 && activeFruits.every(f => f.state !== 'hanging')) {
+                setTimeout(() => {
+                    endGame();
+                }, 800);
+            }
+        }
+
+        // Shock Flashing Screen Effect for Incorrect Key
+        function triggerFlashEffect() {
+            flashEffect.active = true;
+            flashEffect.colorIndex = 0;
+            flashEffect.timer = 0;
+        }
+
+        function createFloatingText(text, x, y, color) {
+            floatingTexts.push({
+                text: text,
+                x: x,
+                y: y,
+                color: color,
+                alpha: 1.0,
+                vy: -1.5
+            });
+        }
+
+        function createJuiceParticles(x, y, fruitType) {
+            const color = fruitType === 'apple' ? '#ef4444' : '#eab308';
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.7) * 5,
+                    radius: Math.random() * 3 + 2,
+                    color: color,
+                    alpha: 1.0,
+                    gravity: 0.25
+                });
+            }
+        }
+
+        // Update HUD Values
+        function updateHUD() {
+            elHits.textContent = hitKeys;
+            elMisses.textContent = missedKeys;
+            
+            const totalRemaining = allLetters.length + activeFruits.filter(f => f.state === 'hanging').length;
+            elQueue.textContent = `${allLetters.length} / 26`;
+
+            const totalAttempts = hitKeys + missedKeys;
+            const accuracy = totalAttempts > 0 ? Math.round((hitKeys / totalAttempts) * 100) : 100;
+            elAccuracy.textContent = `${accuracy}%`;
+        }
+
+        // Render Background (Orchard Sky, Sun, Grass, Tree Canopy)
+        function drawOrchardBackground(ctx) {
+            if (flashEffect.active) {
+                // Flash Bad Colors Effect
+                ctx.fillStyle = BAD_COLORS[flashEffect.colorIndex];
+                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+                flashEffect.timer++;
+                if (flashEffect.timer % flashEffect.interval === 0) {
+                    flashEffect.colorIndex++;
+                    if (flashEffect.colorIndex >= BAD_COLORS.length) {
+                        flashEffect.active = false;
+                    }
+                }
+                return;
+            }
+
+            // Normal Orchard Background
+            // Sky Gradient
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, 350);
+            skyGrad.addColorStop(0, '#38bdf8');
+            skyGrad.addColorStop(0.7, '#bae6fd');
+            skyGrad.addColorStop(1, '#e0f2fe');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Sun
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(620, 70, 36, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Clouds
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            drawCloud(ctx, 100, 70, 0.9);
+            drawCloud(ctx, 360, 90, 0.7);
+
+            // Distant Hills
+            ctx.fillStyle = '#86efac';
+            ctx.beginPath();
+            ctx.arc(200, 500, 260, Math.PI, 0);
+            ctx.fill();
+
+            ctx.fillStyle = '#4ade80';
+            ctx.beginPath();
+            ctx.arc(520, 520, 280, Math.PI, 0);
+            ctx.fill();
+
+            // Ground Grass
+            const grassGrad = ctx.createLinearGradient(0, GROUND_Y - 20, 0, CANVAS_HEIGHT);
+            grassGrad.addColorStop(0, '#22c55e');
+            grassGrad.addColorStop(1, '#15803d');
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, GROUND_Y - 10, CANVAS_WIDTH, CANVAS_HEIGHT - (GROUND_Y - 10));
+
+            // Grass Line Accent
+            ctx.strokeStyle = '#166534';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND_Y - 10);
+            ctx.lineTo(CANVAS_WIDTH, GROUND_Y - 10);
+            ctx.stroke();
+
+            // Orchard Tree Trunks & Foliage Frames
+            // Left Tree Trunk
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(20, 100, 45, 320);
+            // Right Tree Trunk
+            ctx.fillRect(635, 100, 45, 320);
+
+            // Top Canopy Foliage Clusters
+            ctx.fillStyle = '#15803d';
+            ctx.beginPath();
+            ctx.arc(80, 40, 90, 0, Math.PI * 2);
+            ctx.arc(220, 30, 80, 0, Math.PI * 2);
+            ctx.arc(360, 25, 95, 0, Math.PI * 2);
+            ctx.arc(500, 30, 85, 0, Math.PI * 2);
+            ctx.arc(630, 40, 90, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#16a34a';
+            ctx.beginPath();
+            ctx.arc(90, 50, 75, 0, Math.PI * 2);
+            ctx.arc(230, 40, 65, 0, Math.PI * 2);
+            ctx.arc(350, 35, 80, 0, Math.PI * 2);
+            ctx.arc(490, 40, 70, 0, Math.PI * 2);
+            ctx.arc(620, 50, 75, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawCloud(ctx, x, y, scale) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.arc(20, -10, 25, 0, Math.PI * 2);
+            ctx.arc(45, 0, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Main Animation & Render Loop
+        function gameLoop(timestamp) {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // 1. Render Background
+            drawOrchardBackground(ctx);
+
+            // 2. Render & Update Active Fruits
+            activeFruits.forEach(fruit => {
+                fruit.update(timestamp);
+                fruit.draw(ctx);
+            });
+
+            // 3. Render Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += p.gravity;
+                p.alpha -= 0.03;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 4. Render Floating Text Popups
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.02;
+
+                if (ft.alpha <= 0) {
+                    floatingTexts.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = 'bold 28px "Fredoka", sans-serif';
+                ctx.fillStyle = ft.color;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            }
+
+            animFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // Start New Game Session
+        function startGame() {
+            initAudio();
+            gameState = 'PLAYING';
+            hitKeys = 0;
+            missedKeys = 0;
+            activeFruits = [];
+            particles = [];
+            floatingTexts = [];
+            
+            // Populate and Shuffle Queue
+            allLetters = generateShuffledAlphabet();
+
+            // Populate initial active fruits up to MAX_ACTIVE_FRUITS
+            for (let i = 0; i < MAX_ACTIVE_FRUITS; i++) {
+                resetFruit();
+            }
+
+            updateHUD();
+            updateVirtualKeyboardHighlights();
+
+            // Hide Overlay
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // End Game View
+        function endGame() {
+            gameState = 'GAMEOVER';
+            playSound('win');
+
+            const totalAttempts = hitKeys + missedKeys;
+            const accuracy = totalAttempts > 0 ? Math.round((hitKeys / totalAttempts) * 100) : 100;
+
+            document.getElementById('final-hits').textContent = hitKeys;
+            document.getElementById('final-misses').textContent = missedKeys;
+            document.getElementById('final-accuracy').textContent = `${accuracy}%`;
+
+            let rating = 'Beginner';
+            if (accuracy >= 95) rating = 'Master Typist 🌟';
+            else if (accuracy >= 80) rating = 'Expert 🍎';
+            else if (accuracy >= 65) rating = 'Apprentice 🍐';
+            document.getElementById('final-rating').textContent = rating;
+
+            startContent.classList.add('hidden');
+            gameoverContent.classList.remove('hidden');
+
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        // On-Screen Virtual Keyboard Generator & Logic
+        const KEYBOARD_ROWS = [
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+        ];
+
+        function buildVirtualKeyboard() {
+            KEYBOARD_ROWS.forEach((row, idx) => {
+                const rowEl = document.getElementById(`kb-row-${idx + 1}`);
+                rowEl.innerHTML = '';
+
+                row.forEach(char => {
+                    const btn = document.createElement('button');
+                    btn.id = `kb-key-${char}`;
+                    btn.dataset.key = char;
+                    btn.className = 'key-btn w-7 h-9 sm:w-10 sm:h-11 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-slate-100 font-bold uppercase text-xs sm:text-base flex items-center justify-center shadow transition';
+                    btn.textContent = char;
+
+                    btn.addEventListener('click', () => {
+                        handleKeyPress(char);
+                    });
+
+                    rowEl.appendChild(btn);
+                });
+            });
+        }
+
+        function animateKeyButton(char) {
+            const btn = document.getElementById(`kb-key-${char}`);
+            if (btn) {
+                btn.classList.add('active-key', 'bg-amber-500', 'text-slate-950');
+                setTimeout(() => {
+                    btn.classList.remove('active-key', 'bg-amber-500', 'text-slate-950');
+                }, 120);
+            }
+        }
+
+        function updateVirtualKeyboardHighlights() {
+            const hangingLetters = activeFruits
+                .filter(f => f.state === 'hanging')
+                .map(f => f.letter);
+
+            document.querySelectorAll('.key-btn').forEach(btn => {
+                const k = btn.dataset.key;
+                if (hangingLetters.includes(k)) {
+                    btn.classList.add('key-active-tree');
+                } else {
+                    btn.classList.remove('key-active-tree');
+                }
+            });
+        }
+
+        // Keyboard Event Listeners
+        window.addEventListener('keydown', (e) => {
+            // Prevent default page scroll on key down
+            if (e.key === ' ' || /^[a-zA-Z]$/.test(e.key)) {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    if (gameState === 'PLAYING') {
+                        handleKeyPress(e.key);
+                    }
+                }
+            }
+        });
+
+        // Controls & UI Listeners
+        startGameBtn.addEventListener('click', startGame);
+        playAgainBtn.addEventListener('click', () => {
+            startContent.classList.remove('hidden');
+            gameoverContent.classList.add('hidden');
+            startGame();
+        });
+        restartBtn.addEventListener('click', () => {
+            if (confirm('Restart game from beginning?')) {
+                startGame();
+            }
+        });
+
+        audioToggle.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                audioIcon.textContent = '🔊';
+                audioText.textContent = 'Sound ON';
+            } else {
+                audioIcon.textContent = '🔇';
+                audioText.textContent = 'Sound OFF';
+            }
+        });
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            buildVirtualKeyboard();
+            updateHUD();
+            // Start Canvas Game Loop
+            animFrameId = requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
