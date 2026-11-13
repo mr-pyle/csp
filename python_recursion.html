@@ -1,0 +1,4007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Python Recursion &amp; The Call Stack: Interactive Visualizer</title>
+  <style>
+    /* ==========================================================================
+       1. DESIGN TOKENS & BASE STYLES (100% Self-Contained, Zero External Deps)
+       ========================================================================== */
+    :root {
+      --bg-page: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-subtle: #f8fafc;
+      --bg-muted: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --border-light: #cbd5e1;
+      --border-subtle: #e2e8f0;
+
+      /* Dark Code Editor Tokens */
+      --code-bg: #1e293b;
+      --code-header: #0f172a;
+      --code-text: #f1f5f9;
+      --code-line-num: #64748b;
+      --code-active-bg: rgba(250, 204, 21, 0.18);
+      --code-active-border: #facc15;
+      --code-wait-bg: rgba(148, 163, 184, 0.12);
+
+      /* Phase Color Tokens (High Contrast & Color-Blind Friendly) */
+      --phase-init-bg: #dbeafe;
+      --phase-init-text: #1e40af;
+      --phase-init-border: #3b82f6;
+
+      --phase-wind-bg: #fef3c7;
+      --phase-wind-text: #92400e;
+      --phase-wind-border: #f59e0b;
+
+      --phase-base-bg: #d1fae5;
+      --phase-base-text: #065f46;
+      --phase-base-border: #10b981;
+
+      --phase-unwind-bg: #ede9fe;
+      --phase-unwind-text: #5b21b6;
+      --phase-unwind-border: #8b5cf6;
+
+      --phase-err-bg: #fee2e2;
+      --phase-err-text: #991b1b;
+      --phase-err-border: #ef4444;
+
+      /* Interactive Brand Accent */
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eff6ff;
+
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+      /* Shadows & Radii */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.55;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ==========================================================================
+       2. TOP HEADER & NAVIGATION TABS
+       ========================================================================== */
+    .app-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 1rem 1.5rem;
+      border-bottom: 3px solid #3b82f6;
+      box-shadow: var(--shadow-md);
+    }
+
+    .header-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: #2563eb;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .brand p {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      margin-top: 0.15rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .course-pill {
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      color: #93c5fd;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .btn-guide {
+      background: rgba(255, 255, 255, 0.1);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: background 0.15s ease;
+    }
+
+    .btn-guide:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Module Tabs Bar */
+    .tabs-bar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-light);
+      padding: 0.5rem 1.5rem 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .tabs-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 0.75rem 1.1rem;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-subtle);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .tab-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      background: var(--bg-muted);
+      color: var(--text-secondary);
+    }
+
+    .tab-btn.active .tab-tag {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    /* ==========================================================================
+       3. MAIN WORKSPACE CONTAINER & CONTROLS TOOLBAR
+       ========================================================================== */
+    .main-container {
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 2.5rem;
+      flex: 1;
+    }
+
+    /* Sub-selector for Tab 3 (Why Recursion Helps) */
+    .sub-tabs-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .sub-tabs-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .sub-tab-btn {
+      padding: 0.5rem 0.9rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-light);
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .sub-tab-btn:hover {
+      border-color: #94a3b8;
+      background: #f1f5f9;
+    }
+
+    .sub-tab-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+
+    .why-callout {
+      font-size: 0.83rem;
+      color: var(--text-secondary);
+      background: #eff6ff;
+      border-left: 3px solid #2563eb;
+      padding: 0.45rem 0.75rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      max-width: 580px;
+    }
+
+    /* Controls Toolbar */
+    .controls-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1.1rem;
+      margin-bottom: 1.1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .controls-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .control-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    select.styled-select {
+      padding: 0.45rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-light);
+      background: var(--bg-subtle);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn {
+      padding: 0.5rem 0.9rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-light);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.14s ease;
+      user-select: none;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--bg-subtle);
+      border-color: #94a3b8;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .btn-play {
+      background: #0f172a;
+      border-color: #0f172a;
+      color: #ffffff;
+    }
+
+    .btn-play:hover:not(:disabled) {
+      background: #334155;
+    }
+
+    /* Toggle Switches */
+    .toggle-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.42rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-light);
+      background: var(--bg-subtle);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-chip input {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    .toggle-chip.active-predict {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+
+    .toggle-chip.active-danger {
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    /* ==========================================================================
+       4. PREDICT NEXT STEP INTERACTIVE BANNER
+       ========================================================================== */
+    .predict-banner {
+      background: linear-gradient(to right, #eff6ff, #f5f3ff);
+      border: 2px solid #3b82f6;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.1rem;
+      box-shadow: var(--shadow-md);
+      animation: fadeSlideDown 0.2s ease;
+    }
+
+    .predict-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #1d4ed8;
+      margin-bottom: 0.4rem;
+    }
+
+    .predict-question {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+    }
+
+    .predict-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .predict-opt-btn {
+      background: #ffffff;
+      border: 1.5px solid #93c5fd;
+      color: var(--text-primary);
+      padding: 0.55rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.14s ease;
+      text-align: left;
+    }
+
+    .predict-opt-btn:hover {
+      background: #dbeafe;
+      border-color: #2563eb;
+    }
+
+    .predict-opt-btn.wrong {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    .predict-opt-btn.correct {
+      background: #d1fae5;
+      border-color: #10b981;
+      color: #065f46;
+    }
+
+    .predict-feedback {
+      margin-top: 0.65rem;
+      font-size: 0.86rem;
+      font-weight: 600;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-sm);
+    }
+
+    .predict-feedback.wrong {
+      background: #fef2f2;
+      color: #991b1b;
+      border-left: 3px solid #ef4444;
+    }
+
+    .predict-feedback.correct {
+      background: #ecfdf5;
+      color: #065f46;
+      border-left: 3px solid #10b981;
+    }
+
+    /* ==========================================================================
+       5. 3-COLUMN VISUALIZATION STAGE
+       ========================================================================== */
+    .stage-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1.15fr 0.95fr;
+      gap: 1.1rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1120px) {
+      .stage-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .panel-right {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .stage-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .panel-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .step-badge {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--bg-muted);
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+    }
+
+    /* Phase Pill */
+    .phase-bar {
+      padding: 0.65rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .phase-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      padding: 0.32rem 0.75rem;
+      border-radius: 999px;
+      border: 1.5px solid transparent;
+    }
+
+    .phase-INIT {
+      background: var(--phase-init-bg);
+      color: var(--phase-init-text);
+      border-color: var(--phase-init-border);
+    }
+
+    .phase-WINDING {
+      background: var(--phase-wind-bg);
+      color: var(--phase-wind-text);
+      border-color: var(--phase-wind-border);
+    }
+
+    .phase-BASE {
+      background: var(--phase-base-bg);
+      color: var(--phase-base-text);
+      border-color: var(--phase-base-border);
+    }
+
+    .phase-UNWINDING {
+      background: var(--phase-unwind-bg);
+      color: var(--phase-unwind-text);
+      border-color: var(--phase-unwind-border);
+    }
+
+    .phase-ERROR {
+      background: var(--phase-err-bg);
+      color: var(--phase-err-text);
+      border-color: var(--phase-err-border);
+    }
+
+    /* Python Code Display */
+    .code-container {
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+      padding: 0.85rem 0;
+      overflow-x: auto;
+    }
+
+    .code-line {
+      display: flex;
+      align-items: center;
+      padding: 0.24rem 1rem;
+      border-left: 4px solid transparent;
+      transition: background 0.15s ease;
+      white-space: pre;
+    }
+
+    .code-line.active-line {
+      background: var(--code-active-bg);
+      border-left-color: var(--code-active-border);
+    }
+
+    .code-line.waiting-line {
+      background: var(--code-wait-bg);
+      border-left-color: #64748b;
+    }
+
+    .line-pointer {
+      width: 18px;
+      color: #facc15;
+      font-weight: 700;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .line-num {
+      width: 26px;
+      color: var(--code-line-num);
+      text-align: right;
+      margin-right: 0.9rem;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    /* Basic Python Syntax Highlighting Classes */
+    .tok-kw { color: #93c5fd; font-weight: 600; }
+    .tok-fn { color: #fde047; font-weight: 600; }
+    .tok-num { color: #fda4af; }
+    .tok-str { color: #86efac; }
+    .tok-com { color: #94a3b8; font-style: italic; }
+    .tok-bi { color: #c4b5fd; }
+
+    /* Narrator Box */
+    .narrator-box {
+      padding: 1rem 1.1rem;
+      background: #f8fafc;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .narrator-label {
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .narrator-text {
+      font-size: 0.92rem;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* Factorial Loop vs Stack Memory Comparison Box (Tab 2) */
+    .memory-compare-box {
+      margin: 0.85rem 1.1rem 1.1rem;
+      padding: 0.85rem;
+      border-radius: var(--radius-md);
+      background: #f1f5f9;
+      border: 1px solid var(--border-light);
+    }
+
+    .memory-compare-title {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .memory-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+
+    .mem-col {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem;
+    }
+
+    .mem-col h4 {
+      font-size: 0.76rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      color: var(--text-primary);
+    }
+
+    .mem-blocks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-height: 28px;
+      align-items: center;
+    }
+
+    .mem-chip-rec {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      color: #92400e;
+      font-weight: 600;
+    }
+
+    .mem-chip-loop {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.22rem 0.55rem;
+      border-radius: 4px;
+      background: #d1fae5;
+      border: 1.5px solid #10b981;
+      color: #065f46;
+      font-weight: 700;
+    }
+
+    .mem-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.45rem;
+    }
+
+    /* ==========================================================================
+       6. CENTER PANEL: ANIMATED CALL STACK TOWER (LIFO)
+       ========================================================================== */
+    .stack-metrics {
+      padding: 0.6rem 1.1rem;
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.79rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .metric-pill {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+    }
+
+    .metric-pill strong {
+      color: var(--accent);
+      font-family: var(--font-mono);
+    }
+
+    /* Extra Data Structure Visualizer for Tab 3 (Folder Tree, Palindrome, List) */
+    .structure-stage {
+      padding: 0.85rem 1.1rem;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .structure-label {
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .folder-tree-box {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 0.85rem;
+      line-height: 1.65;
+    }
+
+    .tree-node {
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .tree-node.active-node {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      color: #92400e;
+      font-weight: 700;
+    }
+
+    .tree-node.found-node {
+      background: #d1fae5;
+      border: 1px solid #10b981;
+      color: #065f46;
+      font-weight: 700;
+    }
+
+    .tree-node.checked-node {
+      color: #94a3b8;
+      text-decoration: line-through;
+    }
+
+    .char-tiles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+      padding: 0.35rem 0;
+    }
+
+    .char-tile {
+      min-width: 38px;
+      height: 40px;
+      padding: 0 0.5rem;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--border-light);
+      background: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .char-tile.edge-match {
+      background: #d1fae5;
+      border-color: #10b981;
+      color: #065f46;
+      transform: translateY(-2px);
+    }
+
+    .char-tile.edge-mismatch {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    .char-tile.inner-active {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+
+    .char-tile.dimmed {
+      opacity: 0.38;
+      background: #e2e8f0;
+    }
+
+    /* Call Stack Tower Container */
+    .stack-tower-wrapper {
+      padding: 1rem 1.1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-height: 360px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.04), transparent 70%),
+        #ffffff;
+    }
+
+    .stack-direction-top {
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding-bottom: 0.25rem;
+      border-bottom: 1px dashed var(--border-light);
+    }
+
+    /* Stack grows UPWARD using column-reverse so index 0 (__main__) is at bottom */
+    .stack-frames-list {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 0.65rem;
+      flex: 1;
+      justify-content: flex-start;
+      padding: 0.35rem 0;
+    }
+
+    .stack-frame {
+      border-radius: var(--radius-md);
+      border: 2px solid var(--border-light);
+      background: #ffffff;
+      padding: 0.75rem 0.9rem;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.22s ease;
+      animation: pushFrame 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+      position: relative;
+    }
+
+    @keyframes pushFrame {
+      from {
+        opacity: 0;
+        transform: translateY(-14px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes fadeSlideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .stack-frame.frame-main {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+      border-style: solid;
+    }
+
+    .stack-frame.frame-active {
+      border-color: #f59e0b;
+      background: #fffbeb;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.18);
+    }
+
+    .stack-frame.frame-base {
+      border-color: #10b981;
+      background: #ecfdf5;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+    }
+
+    .stack-frame.frame-waiting {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      opacity: 0.9;
+    }
+
+    .stack-frame.frame-returning {
+      border-color: #8b5cf6;
+      background: #f5f3ff;
+      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.2);
+    }
+
+    .stack-frame.frame-error {
+      border-color: #ef4444;
+      background: #fef2f2;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22);
+    }
+
+    .frame-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .frame-sig {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .frame-badge {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-top {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-paused {
+      background: #e2e8f0;
+      color: #475569;
+    }
+
+    .badge-base {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-ret {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .badge-err {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .frame-details {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+      font-size: 0.81rem;
+      color: var(--text-secondary);
+    }
+
+    .frame-locals {
+      font-family: var(--font-mono);
+      background: rgba(15, 23, 42, 0.05);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .frame-status {
+      font-style: italic;
+      color: var(--text-muted);
+    }
+
+    .frame-return-banner {
+      margin-top: 0.45rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: var(--radius-sm);
+      background: #8b5cf6;
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-block;
+    }
+
+    .stack-direction-bottom {
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding-top: 0.25rem;
+      border-top: 2px solid #94a3b8;
+    }
+
+    /* ==========================================================================
+       7. RIGHT PANEL: CONSOLE OUTPUT & WORKSHEET DISCOVERY PROMPTS
+       ========================================================================== */
+    .console-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.83rem;
+      padding: 0.9rem 1rem;
+      min-height: 135px;
+      max-height: 220px;
+      overflow-y: auto;
+      line-height: 1.55;
+    }
+
+    .console-line-cmd { color: #38bdf8; }
+    .console-line-out { color: #f8fafc; }
+    .console-line-ret { color: #4ade80; font-weight: 700; }
+    .console-line-err { color: #f87171; font-weight: 600; }
+
+    .worksheet-section {
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .ws-intro {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      background: #fefce8;
+      border: 1px solid #fde047;
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.75rem;
+    }
+
+    .ws-prompt-card {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 0.85rem;
+      background: var(--bg-subtle);
+    }
+
+    .ws-q-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.35rem;
+    }
+
+    .ws-hint-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0.15rem 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .ws-hint-btn:hover {
+      text-decoration: underline;
+    }
+
+    .ws-hint-body {
+      margin-top: 0.45rem;
+      padding-top: 0.45rem;
+      border-top: 1px dashed var(--border-light);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      display: none;
+    }
+
+    .ws-hint-body.open {
+      display: block;
+    }
+
+    /* ==========================================================================
+       8. TAB 4: PYTHON'S LIMITS, TIMING & TCO SIMULATOR
+       ========================================================================== */
+    .limits-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (max-width: 960px) {
+      .limits-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .lab-body {
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .slider-val-badge {
+      font-family: var(--font-mono);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 0.2rem 0.65rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 8px;
+    }
+
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .preset-btn {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.3rem 0.6rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-light);
+      background: var(--bg-subtle);
+      cursor: pointer;
+    }
+
+    .preset-btn:hover {
+      background: #dbeafe;
+      border-color: #3b82f6;
+    }
+
+    /* Stack Capacity Gauge */
+    .gauge-container {
+      background: #f8fafc;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0.9rem;
+    }
+
+    .gauge-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 0.4rem;
+    }
+
+    .gauge-track {
+      height: 24px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #cbd5e1;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #f59e0b);
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .gauge-fill.overflow {
+      background: linear-gradient(90deg, #ef4444, #991b1b);
+    }
+
+    .sim-compare-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 560px) {
+      .sim-compare-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sim-stat-card {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0.85rem;
+      background: var(--bg-subtle);
+    }
+
+    .sim-stat-card.ok {
+      border-left: 4px solid #10b981;
+    }
+
+    .sim-stat-card.crash {
+      border-left: 4px solid #ef4444;
+      background: #fef2f2;
+    }
+
+    .sim-stat-card h4 {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .sim-stat-card p {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    /* Timing Benchmark Bars */
+    .bar-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .bar-item label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      font-family: var(--font-mono);
+    }
+
+    .bar-bg {
+      height: 18px;
+      background: #e2e8f0;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .bar-fill-loop {
+      height: 100%;
+      background: #10b981;
+      transition: width 0.35s ease;
+    }
+
+    .bar-fill-rec {
+      height: 100%;
+      background: #f59e0b;
+      transition: width 0.35s ease;
+    }
+
+    .bar-fill-rec.crashed {
+      background: #ef4444;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 0.45rem 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+      text-align: left;
+    }
+
+    .history-table th {
+      background: var(--bg-subtle);
+      font-family: var(--font-sans);
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    /* TCO Explanation Section */
+    .tco-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .tco-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.1rem;
+      padding: 1.15rem;
+    }
+
+    @media (max-width: 860px) {
+      .tco-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tco-mode-box {
+      border: 2px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      background: var(--bg-subtle);
+    }
+
+    .tco-mode-box.python-box {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+
+    .tco-mode-box.tco-box {
+      border-color: #94a3b8;
+      background: #f8fafc;
+    }
+
+    .tco-frames-mini {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin: 0.75rem 0;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .mini-frame {
+      padding: 0.35rem 0.65rem;
+      border-radius: 5px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .mini-frame.boom {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #991b1b;
+      font-weight: 700;
+    }
+
+    .mini-frame.overwritten {
+      background: #e2e8f0;
+      color: #64748b;
+      text-decoration: line-through;
+    }
+
+    /* ==========================================================================
+       9. MODAL & FOOTER
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 1000;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-dialog {
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      max-width: 640px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-light);
+    }
+
+    .modal-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-body {
+      padding: 1.25rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .modal-body ul {
+      padding-left: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .app-footer {
+      text-align: center;
+      padding: 1rem 1.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-light);
+      background: var(--bg-card);
+    }
+  </style>
+</head>
+<body>
+  <!-- ========================================================================
+       HEADER
+       ======================================================================== -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <!-- Stacked Layers SVG Icon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 12 12 17 22 12"></polyline>
+            <polyline points="2 17 12 22 22 17"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h1>Python Recursion &amp; The Call Stack</h1>
+          <p>Interactive CS1 Memory &amp; Execution Visualizer &bull; Companion to <em>Intro to Recursive Algorithms</em></p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <span class="course-pill">CS1 Python Lab</span>
+        <button type="button" class="btn-guide" id="openGuideBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          How to Use with Worksheet
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       NAVIGATION TABS
+       ======================================================================== -->
+  <nav class="tabs-bar" aria-label="Course Modules">
+    <div class="tabs-inner">
+      <button type="button" class="tab-btn active" data-tab="countdown">
+        <span>1. Countdown</span>
+        <span class="tab-tag">Worksheet Ex. 1</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="factorial">
+        <span>2. Factorial &amp; Unwinding</span>
+        <span class="tab-tag">Worksheet Ex. 2</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="why">
+        <span>3. Why Recursion Helps</span>
+        <span class="tab-tag">CS1 Examples</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="limits">
+        <span>4. Python's Limits &amp; Speed</span>
+        <span class="tab-tag">Worksheet Issues</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ========================================================================
+       MAIN CONTENT AREA
+       ======================================================================== -->
+  <main class="main-container">
+    <!-- TAB 1, 2, 3: STEP-BY-STEP VISUALIZER WORKSPACE -->
+    <section id="visualizerWorkspace">
+      <!-- Sub-Selector Bar (Visible only on Tab 3: Why Recursion Helps) -->
+      <div class="sub-tabs-bar" id="whySubBar" style="display: none;">
+        <div class="sub-tabs-group">
+          <button type="button" class="sub-tab-btn active" data-sub="folder">A. Nested Folder Search</button>
+          <button type="button" class="sub-tab-btn" data-sub="palindrome">B. Palindrome Checker</button>
+          <button type="button" class="sub-tab-btn" data-sub="sumlist">C. Sum of a List</button>
+        </div>
+        <div class="why-callout" id="whyCalloutText">
+          <strong>Why recursion shines here:</strong> Folders can hold folders inside folders to any unknown depth. A single recursive function explores every level naturally without manual tracking lists!
+        </div>
+      </div>
+
+      <!-- Execution Controls Toolbar -->
+      <div class="controls-bar">
+        <div class="controls-group">
+          <label for="inputSelect" class="control-label" id="inputSelectLabel">Input Value:</label>
+          <select id="inputSelect" class="styled-select"></select>
+
+          <button type="button" class="btn" id="resetBtn" title="Reset to Step 0">
+            &#8634; Reset
+          </button>
+          <button type="button" class="btn" id="prevBtn" title="Step Backward (Left Arrow)">
+            &larr; Prev
+          </button>
+          <button type="button" class="btn btn-primary" id="nextBtn" title="Step Forward (Right Arrow)">
+            Next Step &rarr;
+          </button>
+          <button type="button" class="btn btn-play" id="playBtn">
+            &#9654; Auto-Play
+          </button>
+        </div>
+
+        <div class="controls-group">
+          <label class="toggle-chip" id="predictChip" title="Pause before each step and test your prediction">
+            <input type="checkbox" id="predictToggle" />
+            <span>Predict Next Step</span>
+          </label>
+
+          <label class="toggle-chip" id="breakBaseChip" title="See what happens if you forget the base case!">
+            <input type="checkbox" id="breakBaseToggle" />
+            <span>Break Base Case</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Predict Next Step Interactive Challenge Box -->
+      <div class="predict-banner" id="predictBanner" style="display: none;">
+        <div class="predict-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>Predict What Happens Next</span>
+        </div>
+        <div class="predict-question" id="predictQuestionText"></div>
+        <div class="predict-options" id="predictOptionsContainer"></div>
+        <div class="predict-feedback" id="predictFeedback" style="display: none;"></div>
+      </div>
+
+      <!-- 3-Column Visual Stage -->
+      <div class="stage-grid">
+        <!-- LEFT PANEL: Python Source Code & Phase Narrator -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              <span>Python Code</span>
+            </div>
+            <span class="step-badge" id="stepCounterBadge">Step 1 of 10</span>
+          </div>
+
+          <div class="phase-bar">
+            <span class="phase-pill phase-INIT" id="phasePill">INITIALIZE</span>
+            <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 600;" id="phaseSubHint">Ready to start</span>
+          </div>
+
+          <div class="code-container" id="codeDisplay" aria-label="Python Source Code"></div>
+
+          <div class="narrator-box">
+            <div class="narrator-label">What's Happening Right Now</div>
+            <div class="narrator-text" id="narratorText"></div>
+          </div>
+
+          <!-- Memory Footprint Comparison (Shown on Tab 2: Factorial) -->
+          <div class="memory-compare-box" id="factorialMemoryBox" style="display: none;">
+            <div class="memory-compare-title">
+              <span>Memory Comparison: Stack vs. Loop</span>
+              <span style="font-size: 0.72rem; color: var(--accent);">Worksheet Ex. 2</span>
+            </div>
+            <div class="memory-grid">
+              <div class="mem-col">
+                <h4>Recursive Frames in RAM</h4>
+                <div class="mem-blocks" id="memRecBlocks"></div>
+              </div>
+              <div class="mem-col">
+                <h4>Loop Memory (1 Box Reused)</h4>
+                <div class="mem-blocks" id="memLoopBlocks"></div>
+              </div>
+            </div>
+            <p class="mem-note" id="memCompareNote">
+              Notice how a loop updates a single variable box in place, whereas recursion stacks separate frames until the base case!
+            </p>
+          </div>
+        </div>
+
+        <!-- CENTER PANEL: Animated Call Stack Tower (LIFO) -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="5" rx="1"></rect>
+                <rect x="3" y="10" width="18" height="5" rx="1"></rect>
+                <rect x="3" y="17" width="18" height="5" rx="1"></rect>
+              </svg>
+              <span>Python Call Stack (LIFO)</span>
+            </div>
+            <span class="step-badge" id="stackCountBadge">1 Frame</span>
+          </div>
+
+          <div class="stack-metrics">
+            <span class="metric-pill">Active Function Calls: <strong id="activeFuncCount">0</strong></span>
+            <span class="metric-pill">Rule: <strong>Last-In, First-Out</strong></span>
+          </div>
+
+          <!-- Extra Data Structure Visual (Used in Tab 3: Folder Tree, Palindrome, List) -->
+          <div class="structure-stage" id="extraStructureStage" style="display: none;">
+            <div class="structure-label" id="extraStructureLabel">Data View</div>
+            <div id="extraStructureContent"></div>
+          </div>
+
+          <div class="stack-tower-wrapper">
+            <div class="stack-direction-top">&uarr; Top of Stack (Most Recent Call Runs Here) &uarr;</div>
+            <div class="stack-frames-list" id="stackFramesList"></div>
+            <div class="stack-direction-bottom">Bottom of Stack (__main__ Program Start)</div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL: Simulated Python Console & Worksheet Hints -->
+        <div class="panel-card panel-right">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
+              <span>Python Console &amp; Worksheet Prompts</span>
+            </div>
+          </div>
+
+          <div class="console-box" id="consoleOutput" aria-live="polite"></div>
+
+          <div class="worksheet-section">
+            <div class="ws-intro">
+              <strong>Worksheet Companion:</strong> Use the Call Stack on the left to answer your worksheet questions. Click <em>"Need a Nudge?"</em> for hints without spoiling the answers!
+            </div>
+            <div id="worksheetPromptsList" style="display: flex; flex-direction: column; gap: 0.65rem;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 4: PYTHON'S LIMITS, TIMING & TAIL-CALL OPTIMIZATION LAB
+         ====================================================================== -->
+    <section id="limitsWorkspace" style="display: none;">
+      <div class="limits-grid">
+        <!-- LEFT LAB CARD: Stack Limit & RecursionError Explorer -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <span>1. Stack Depth &amp; RecursionError Explorer</span>
+            </div>
+            <span class="step-badge">Limit = 1000 frames</span>
+          </div>
+
+          <div class="lab-body">
+            <p style="font-size: 0.88rem; color: var(--text-secondary);">
+              Python limits the Call Stack to <strong>1,000 frames</strong> by default (<code>sys.getrecursionlimit()</code>) so a runaway function cannot crash your computer's memory. Drag the slider to test <code>factorial(x)</code>!
+            </p>
+
+            <div class="slider-row">
+              <div class="slider-header">
+                <label for="limitSlider">Choose value of <code>x</code>:</label>
+                <span class="slider-val-badge" id="limitSliderVal">x = 5</span>
+              </div>
+              <input type="range" id="limitSlider" min="1" max="1050" value="5" />
+              <div class="preset-row">
+                <button type="button" class="preset-btn" data-x="5">x = 5</button>
+                <button type="button" class="preset-btn" data-x="250">x = 250</button>
+                <button type="button" class="preset-btn" data-x="500">x = 500</button>
+                <button type="button" class="preset-btn" data-x="997">x = 997</button>
+                <button type="button" class="preset-btn" data-x="998">x = 998</button>
+                <button type="button" class="preset-btn" data-x="999">x = 999</button>
+                <button type="button" class="preset-btn" data-x="1050">x = 1050</button>
+              </div>
+            </div>
+
+            <!-- Visual Stack Capacity Gauge -->
+            <div class="gauge-container">
+              <div class="gauge-labels">
+                <span>Call Stack Usage: <strong id="gaugeFramesText">7 / 1000 frames</strong></span>
+                <span id="gaugeStatusLabel" style="color: #065f46;">Safe</span>
+              </div>
+              <div class="gauge-track">
+                <div class="gauge-fill" id="gaugeFill" style="width: 1%;"></div>
+              </div>
+              <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.45rem;">
+                Includes <code>1</code> main program frame (<code>&lt;module&gt;</code>) + <code>x + 1</code> recursive <code>factorial</code> frames (from <code>x</code> down to <code>0</code>).
+              </div>
+            </div>
+
+            <!-- Side-by-side Outcome Cards -->
+            <div class="sim-compare-cards">
+              <div class="sim-stat-card ok" id="recOutcomeCard">
+                <h4>factorial(x) [Recursive]</h4>
+                <p id="recOutcomeText">Pushes 6 function frames onto the stack and returns 120.</p>
+              </div>
+              <div class="sim-stat-card ok">
+                <h4>factorial_loop(x) [Iterative]</h4>
+                <p id="loopOutcomeText">Uses only <strong>1 function frame</strong> total! Easily computes 5! and beyond.</p>
+              </div>
+            </div>
+
+            <!-- Simulated Python Output Box -->
+            <div class="console-box" id="limitConsoleBox" style="min-height: 110px;"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT LAB CARD: Simulated time_test(x) Speed Benchmark -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>2. Simulated <code>time_test(x)</code> Speed Comparison</span>
+            </div>
+            <span class="step-badge">Worksheet Benchmark</span>
+          </div>
+
+          <div class="lab-body">
+            <p style="font-size: 0.88rem; color: var(--text-secondary);">
+              Even when <code>x</code> is below the 1,000-frame limit, building and tearing down hundreds of stack frames takes extra CPU time compared to a single loop. Run a simulated <code>time_test(x)</code> below:
+            </p>
+
+            <div class="controls-group">
+              <label for="timeTestSelect" class="control-label">Test Input:</label>
+              <select id="timeTestSelect" class="styled-select">
+                <option value="10">time_test(10)</option>
+                <option value="100">time_test(100)</option>
+                <option value="500" selected>time_test(500)</option>
+                <option value="950">time_test(950)</option>
+                <option value="1000">time_test(1000)</option>
+              </select>
+              <button type="button" class="btn btn-primary" id="runTimeTestBtn">
+                &#9654; Run time_test()
+              </button>
+            </div>
+
+            <div class="bar-group">
+              <div class="bar-item">
+                <label>
+                  <span>factorial_loop(x) [1 Stack Frame]</span>
+                  <span id="loopTimeLabel">0.00012 seconds</span>
+                </label>
+                <div class="bar-bg">
+                  <div class="bar-fill-loop" id="loopTimeBar" style="width: 18%;"></div>
+                </div>
+              </div>
+
+              <div class="bar-item">
+                <label>
+                  <span>factorial(x) [x + 1 Stack Frames]</span>
+                  <span id="recTimeLabel">0.00068 seconds</span>
+                </label>
+                <div class="bar-bg">
+                  <div class="bar-fill-rec" id="recTimeBar" style="width: 78%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Call</th>
+                    <th>Loop Time</th>
+                    <th>Recursive Time</th>
+                    <th>Takeaway</th>
+                  </tr>
+                </thead>
+                <tbody id="timeHistoryBody">
+                  <tr>
+                    <td>time_test(500)</td>
+                    <td>0.00012s</td>
+                    <td>0.00068s</td>
+                    <td>Loop ~5.6x faster (1 frame vs 501 frames)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM CARD: Why Python Doesn't Implement Tail-Call Optimization (TCO) -->
+      <div class="tco-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span>3. Why Python Avoids Tail-Call Optimization (TCO)</span>
+          </div>
+          <span class="step-badge">Design Philosophy</span>
+        </div>
+
+        <div class="tco-grid">
+          <div class="tco-mode-box python-box">
+            <h4 style="font-size: 0.92rem; color: #1e40af; margin-bottom: 0.35rem;">
+              How Python Works: Keeps Every Stack Frame
+            </h4>
+            <p style="font-size: 0.83rem; color: var(--text-secondary);">
+              Suppose a bug happens when <code>n = 0</code> (like dividing by <code>n</code>). Because Python keeps every frame on the stack, it prints a <strong>full Error Traceback</strong> showing every step that led to the crash:
+            </p>
+            <div class="tco-frames-mini">
+              <div class="mini-frame"><span>Frame 1: bug_demo(3)</span><span>line 4 &rarr; called bug_demo(2)</span></div>
+              <div class="mini-frame"><span>Frame 2: bug_demo(2)</span><span>line 4 &rarr; called bug_demo(1)</span></div>
+              <div class="mini-frame"><span>Frame 3: bug_demo(1)</span><span>line 4 &rarr; called bug_demo(0)</span></div>
+              <div class="mini-frame boom"><span>Frame 4: bug_demo(0)</span><span>ZeroDivisionError at line 2!</span></div>
+            </div>
+            <p style="font-size: 0.8rem; color: #1e3a8a; font-weight: 600;">
+              Result: Easy to debug! You can trace the exact path of calls.
+            </p>
+          </div>
+
+          <div class="tco-mode-box tco-box">
+            <h4 style="font-size: 0.92rem; color: #334155; margin-bottom: 0.35rem;">
+              Tail-Call Optimization (TCO): Overwrites Frames
+            </h4>
+            <p style="font-size: 0.83rem; color: var(--text-secondary);">
+              Languages with TCO recycle the <strong>same single frame</strong> in memory to avoid stack limits. However, when <code>n = 0</code> crashes, all earlier call history has been erased:
+            </p>
+            <div class="tco-frames-mini">
+              <div class="mini-frame overwritten"><span>Frame 1: bug_demo(3)</span><span>[Overwritten in memory]</span></div>
+              <div class="mini-frame overwritten"><span>Frame 2: bug_demo(2)</span><span>[Overwritten in memory]</span></div>
+              <div class="mini-frame overwritten"><span>Frame 3: bug_demo(1)</span><span>[Overwritten in memory]</span></div>
+              <div class="mini-frame boom"><span>Active Frame: bug_demo(0)</span><span>ZeroDivisionError (Where did 0 come from?!)</span></div>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">
+              Python's creator (Guido van Rossum) chose readable tracebacks and clear <code>for</code>/<code>while</code> loops over TCO.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================
+       WORKSHEET & TEACHER GUIDE MODAL
+       ======================================================================== -->
+  <div class="modal-backdrop" id="guideModal" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="guideModalTitle" style="font-size: 1.05rem;">How This Visualizer Maps to Your Worksheet</h3>
+        <button type="button" class="btn" id="closeGuideBtn" style="padding: 0.3rem 0.65rem;">&times; Close</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          This interactive lab is built to help you visualize what Python is doing behind the scenes in memory while you complete <strong>Introduction to Recursive Algorithms</strong>.
+        </p>
+        <ul>
+          <li><strong>Tab 1 (Countdown):</strong> Watch how <code>countdown(n)</code> pushes frames onto the Call Stack until hitting the base case, then pops back out. Try <em>Break Base Case</em> to see why the stopping condition is essential!</li>
+          <li><strong>Tab 2 (Factorial &amp; Unwinding):</strong> Notice how each <code>factorial(x)</code> frame pauses at <code>x * factorial(x - 1)</code> and waits until <code>factorial(0)</code> returns <code>1</code>. Count the frames on the stack when <code>x = 0</code> is reached!</li>
+          <li><strong>Tab 3 (Why Recursion Helps):</strong> Explore three CS1 problems—especially <em>Nested Folder Search</em>—to see where recursion is cleaner than writing nested loops, and gather ideas for the final table on your worksheet.</li>
+          <li><strong>Tab 4 (Python's Limits &amp; Speed):</strong> Experiment with the 1,000-frame stack ceiling, run simulated <code>time_test(x)</code> benchmarks, and see why Python avoids Tail-Call Optimization.</li>
+        </ul>
+        <p style="background: #eff6ff; padding: 0.65rem 0.85rem; border-radius: 8px; color: #1e40af; font-weight: 600;">
+          Tip: Turn on <strong>"Predict Next Step"</strong> in the toolbar to quiz yourself before each stack frame is pushed or popped!
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       FOOTER
+       ======================================================================== -->
+  <footer class="app-footer">
+    Self-Contained CS1 Python Education Tool &bull; Zero External Dependencies &bull; Ready for Classroom Use or GitHub Pages
+  </footer>
+
+  <!-- ========================================================================
+       JAVASCRIPT: TRACE GENERATORS, UI RENDERING & SIMULATORS
+       ======================================================================== -->
+  <script>
+    (function () {
+      "use strict";
+
+      /* ======================================================================
+         1. PYTHON SYNTAX HIGHLIGHTER (Simple, Safe Tokenization for Display)
+         ====================================================================== */
+      function highlightPythonLine(rawLine) {
+        // Escape HTML characters first
+        let escaped = rawLine
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+        // Separate trailing comment if present
+        let commentPart = "";
+        const hashIdx = escaped.indexOf("#");
+        if (hashIdx !== -1) {
+          commentPart = `<span class="tok-com">${escaped.slice(hashIdx)}</span>`;
+          escaped = escaped.slice(0, hashIdx);
+        }
+
+        // Highlight strings
+        escaped = escaped.replace(/("[^"]*"|'[^']*')/g, '<span class="tok-str">$1</span>');
+
+        // Highlight keywords
+        escaped = escaped.replace(
+          /\b(def|if|else|elif|return|for|in|True|False|None)\b/g,
+          '<span class="tok-kw">$1</span>'
+        );
+
+        // Highlight built-ins
+        escaped = escaped.replace(
+          /\b(print|len|type|list)\b/g,
+          '<span class="tok-bi">$1</span>'
+        );
+
+        // Highlight function names right after def
+        escaped = escaped.replace(
+          /(<span class="tok-kw">def<\/span>\s+)([a-zA-Z_][a-zA-Z0-9_]*)/g,
+          '$1<span class="tok-fn">$2</span>'
+        );
+
+        // Highlight standalone numbers (avoiding digits inside HTML tags/attributes)
+        escaped = escaped.replace(/\b(\d+)\b/g, '<span class="tok-num">$1</span>');
+
+        return escaped + commentPart;
+      }
+
+      /* ======================================================================
+         2. EXECUTION TRACE GENERATORS (Step-by-Step State Snapshots)
+         ====================================================================== */
+
+      // --- TRACE A: COUNTDOWN (Worksheet Example 1) ---
+      function buildCountdownTrace(startN, breakBase) {
+        const codeLines = breakBase
+          ? [
+              "def countdown(n):",
+              "    # Base case removed! Never stops:",
+              "    print(n)",
+              "    countdown(n - 1)",
+              "",
+              `countdown(${startN})`
+            ]
+          : [
+              "def countdown(n):",
+              "    if n <= 0:",
+              '        print("Blastoff!")',
+              "    else:",
+              "        print(n)",
+              "        countdown(n - 1)",
+              "",
+              `countdown(${startN})`
+            ];
+
+        const steps = [];
+        const callLine = breakBase ? 6 : 8;
+        const consoleHistory = [{ text: `>>> countdown(${startN})`, type: "cmd" }];
+
+        // Helper to clone stack frames
+        const cloneStack = (arr) => arr.map((f) => ({ ...f }));
+
+        // Step 0: Initialize
+        let stack = [
+          {
+            id: "main",
+            funcName: "__main__",
+            sig: "__main__ (Module)",
+            locals: `call: countdown(${startN})`,
+            status: `Calling countdown(${startN}) at line ${callLine}`,
+            state: "main"
+          }
+        ];
+
+        steps.push({
+          phase: "INIT",
+          phaseLabel: "INITIALIZE",
+          subHint: "Starting main program",
+          activeLine: callLine,
+          waitingLines: [],
+          activeFuncCount: 0,
+          narration: `Python starts at line ${callLine} and prepares to call countdown(${startN}). A new frame will be pushed onto the Call Stack.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory],
+          prediction: {
+            question: `What happens next when Python executes countdown(${startN})?`,
+            options: [
+              {
+                text: `Push a new frame countdown(${startN}) onto the Call Stack`,
+                correct: true,
+                feedback: `Spot on! Every function call creates a new frame on top of the Call Stack with its own local variable n = ${startN}.`
+              },
+              {
+                text: `Immediately print "Blastoff!" and finish`,
+                correct: false,
+                feedback: `Not yet—Python has to enter countdown(${startN}) first and check the condition inside the function.`
+              },
+              {
+                text: `Run a loop from ${startN} down to 0 inside __main__`,
+                correct: false,
+                feedback: `There is no loop here! Instead, countdown will call itself with smaller numbers.`
+              }
+            ]
+          }
+        });
+
+        // Winding down
+        const minStop = breakBase ? startN - 5 : 0;
+        for (let n = startN; n >= minStop; n--) {
+          const isBase = !breakBase && n <= 0;
+
+          // Enter frame
+          stack.push({
+            id: `cd-${n}`,
+            funcName: "countdown",
+            sig: `countdown(${n})`,
+            locals: `n = ${n}`,
+            status: isBase ? "Checking base case at line 2..." : `Running with n = ${n}`,
+            state: isBase ? "base" : "active"
+          });
+
+          const waitLines = stack
+            .slice(1, -1)
+            .map(() => (breakBase ? 4 : 6));
+
+          if (isBase) {
+            // Base case check
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: `n = ${n} satisfies n <= 0`,
+              activeLine: 2,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              narration: `Inside countdown(${n}), Python checks "if n <= 0:". Since ${n} <= 0 is True, we have reached the Base Case! No more recursive calls will be made.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory],
+              prediction: {
+                question: `Now that n <= 0 is True inside countdown(${n}), what happens on line 3?`,
+                options: [
+                  {
+                    text: `Print "Blastoff!" and begin unwinding the stack`,
+                    correct: true,
+                    feedback: `Correct! Because we hit the base case, Python prints "Blastoff!" and stops making new calls.`
+                  },
+                  {
+                    text: `Call countdown(${n - 1}) one more time`,
+                    correct: false,
+                    feedback: `Look at the if/else structure: because the "if" branch ran, Python skips the "else" branch!`
+                  }
+                ]
+              }
+            });
+
+            // Print Blastoff
+            consoleHistory.push({ text: "Blastoff!", type: "out" });
+            stack[stack.length - 1].status = 'Printed "Blastoff!" — ready to return';
+            stack[stack.length - 1].returnBadge = "Returns None";
+
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: "Base case action complete",
+              activeLine: 3,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              narration: `Python prints "Blastoff!". Notice that ${stack.length - 1} instances of countdown are currently stacked in memory. Now countdown(${n}) finishes and pops off!`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory],
+              prediction: {
+                question: `When countdown(${n}) finishes and pops off the stack, which frame resumes next?`,
+                options: [
+                  {
+                    text: `The caller right below it on the stack: countdown(${n + 1})`,
+                    correct: true,
+                    feedback: `Yes! Stacks are Last-In, First-Out (LIFO), so control returns to countdown(${n + 1}) at line 6.`
+                  },
+                  {
+                    text: `Jump straight back to __main__ and skip the middle frames`,
+                    correct: false,
+                    feedback: `Python must unwind one frame at a time in reverse order (LIFO) until every paused call finishes.`
+                  }
+                ]
+              }
+            });
+            break;
+          }
+
+          // Recursive step (not base case)
+          if (!breakBase) {
+            steps.push({
+              phase: "WINDING",
+              phaseLabel: "WINDING UP: Pushing Frame",
+              subHint: `n = ${n} (not base case)`,
+              activeLine: 2,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              narration: `Inside countdown(${n}), Python checks "if n <= 0:". Since ${n} <= 0 is False, it moves to the else block.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+          }
+
+          // Print n
+          consoleHistory.push({ text: `${n}`, type: "out" });
+          const printLine = breakBase ? 3 : 5;
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Pushing Frame",
+            subHint: `Printing ${n}`,
+            activeLine: printLine,
+            waitingLines: waitLines,
+            activeFuncCount: stack.length - 1,
+            narration: `Python prints ${n} to the console before making the recursive call.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          // Prepare recursive call
+          const recLine = breakBase ? 4 : 6;
+          stack[stack.length - 1].state = "waiting";
+          stack[stack.length - 1].status = `Paused at line ${recLine}: waiting for countdown(${n - 1})`;
+
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Pushing Frame",
+            subHint: `Calling countdown(${n - 1})`,
+            activeLine: recLine,
+            waitingLines: [...waitLines, recLine],
+            activeFuncCount: stack.length - 1,
+            narration: `Line ${recLine} calls countdown(${n - 1}) with a simpler input (${n} - 1 = ${n - 1}). Frame countdown(${n}) pauses right here until countdown(${n - 1}) finishes.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory],
+            prediction:
+              n === startN
+                ? {
+                    question: `Why does countdown(${n}) pass (${n - 1}) instead of (${n})?`,
+                    options: [
+                      {
+                        text: `To move closer to the base case (n <= 0) so recursion eventually stops`,
+                        correct: true,
+                        feedback: `Exactly! Each recursive call must use a simpler input that progresses toward the base case.`
+                      },
+                      {
+                        text: `Because Python forbids passing the same variable name twice`,
+                        correct: false,
+                        feedback: `Python allows the same variable name, but without reducing n, the function would never reach n <= 0!`
+                      }
+                    ]
+                  }
+                : null
+          });
+        }
+
+        if (breakBase) {
+          // Simulate RecursionError crash
+          stack.push({
+            id: "cd-crash",
+            funcName: "countdown",
+            sig: `countdown(${minStop - 1}) ... countdown(-994)`,
+            locals: "n = -994 (1000 frames full!)",
+            status: "RecursionError: maximum recursion depth exceeded",
+            state: "error"
+          });
+          consoleHistory.push({
+            text: "RecursionError: maximum recursion depth exceeded while calling a Python object",
+            type: "err"
+          });
+          steps.push({
+            phase: "ERROR",
+            phaseLabel: "RecursionError",
+            subHint: "Stack overflowed at 1,000 frames!",
+            activeLine: 4,
+            waitingLines: [4],
+            activeFuncCount: 999,
+            narration: `Without a base case, n keeps decreasing forever (0, -1, -2, ...). Python stops the program at 1,000 frames and raises RecursionError!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          return { codeLines, steps };
+        }
+
+        // Unwinding phase for countdown
+        stack.pop(); // Pop countdown(0)
+        for (let n = 1; n <= startN; n++) {
+          const topIdx = stack.length - 1;
+          stack[topIdx].state = "returning";
+          stack[topIdx].status = `Resumed after line 6 — nothing left in else, returning None`;
+          stack[topIdx].returnBadge = "Returns None";
+
+          const waitLines = stack.slice(1, -1).map(() => 6);
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning & Popping",
+            subHint: `Popping countdown(${n})`,
+            activeLine: 6,
+            waitingLines: waitLines,
+            activeFuncCount: stack.length - 1,
+            narration: `Control returns to countdown(${n}) at line 6. Because line 6 was the last line of the function, countdown(${n}) finishes and pops off the stack!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+        }
+
+        // Final step back in __main__
+        stack[0].state = "main";
+        stack[0].status = "Finished! All countdown frames popped.";
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "COMPLETE",
+          subHint: "Stack cleared",
+          activeLine: callLine,
+          waitingLines: [],
+          activeFuncCount: 0,
+          narration: `All recursive frames have unwound and popped off the Call Stack. Only __main__ remains!`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        return { codeLines, steps };
+      }
+
+      // --- TRACE B: FACTORIAL (Worksheet Example 2) ---
+      function buildFactorialTrace(startX, breakBase) {
+        const codeLines = breakBase
+          ? [
+              "def factorial(x):",
+              "    # Base case removed! Never stops:",
+              "    return x * factorial(x - 1)",
+              "",
+              `result = factorial(${startX})`,
+              "print(result)"
+            ]
+          : [
+              "def factorial(x):",
+              "    if x == 0:",
+              "        return 1",
+              "    else:",
+              "        return x * factorial(x - 1)",
+              "",
+              `result = factorial(${startX})`,
+              "print(result)"
+            ];
+
+        const steps = [];
+        const callLine = breakBase ? 5 : 7;
+        const consoleHistory = [{ text: `>>> result = factorial(${startX})`, type: "cmd" }];
+        const cloneStack = (arr) => arr.map((f) => ({ ...f }));
+
+        let stack = [
+          {
+            id: "main",
+            funcName: "__main__",
+            sig: "__main__ (Module)",
+            locals: `result = ?`,
+            status: `Waiting for factorial(${startX}) at line ${callLine}`,
+            state: "main"
+          }
+        ];
+
+        steps.push({
+          phase: "INIT",
+          phaseLabel: "INITIALIZE",
+          subHint: "Starting main program",
+          activeLine: callLine,
+          waitingLines: [],
+          activeFuncCount: 0,
+          memRec: [],
+          memLoop: { total: 1, i: startX > 0 ? 1 : 0 },
+          narration: `Line ${callLine} calls factorial(${startX}). Python pushes a new frame onto the Call Stack to compute ${startX}!.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory],
+          prediction: {
+            question: `When factorial(${startX}) runs, can Python finish multiplying immediately?`,
+            options: [
+              {
+                text: startX === 0
+                  ? "Yes! x == 0 is the base case, so it immediately returns 1"
+                  : `No—it must pause and wait for factorial(${startX - 1}) first`,
+                correct: true,
+                feedback:
+                  startX === 0
+                    ? "Exactly! 0! is defined as 1, so the base case returns right away."
+                    : `Right! Python cannot compute ${startX} * factorial(${startX - 1}) until factorial(${startX - 1}) returns an answer.`
+              },
+              {
+                text: startX === 0
+                  ? "No, it still calls factorial(-1)"
+                  : "Yes, it multiplies all numbers in one single step",
+                correct: false,
+                feedback:
+                  startX === 0
+                    ? "Check line 2: when x == 0, the if-statement catches it!"
+                    : "In recursion, each call only knows its own x and has to wait on a smaller call."
+              }
+            ]
+          }
+        });
+
+        const minStop = breakBase ? startX - 5 : 0;
+        for (let x = startX; x >= minStop; x--) {
+          const isBase = !breakBase && x === 0;
+          const activeFramesList = [];
+          for (let k = startX; k >= x; k--) activeFramesList.push(`x=${k}`);
+
+          stack.push({
+            id: `fact-${x}`,
+            funcName: "factorial",
+            sig: `factorial(${x})`,
+            locals: `x = ${x}`,
+            status: isBase ? "Base case! x == 0 is True" : `Evaluating x = ${x}`,
+            state: isBase ? "base" : "active"
+          });
+
+          const waitLines = stack.slice(1, -1).map(() => (breakBase ? 3 : 5));
+
+          if (isBase) {
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: `x == 0 (${stack.length - 1} frames stacked!)`,
+              activeLine: 2,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              memRec: activeFramesList,
+              memLoop: { total: 1, i: "done" },
+              narration: `Look at the Call Stack! There are now ${stack.length - 1} instances of factorial on the stack simultaneously (from x = ${startX} down to x = 0). Line 2 sees x == 0 is True!`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory],
+              prediction: {
+                question: `Why MUST factorial(0) return 1 instead of 0?`,
+                options: [
+                  {
+                    text: `Because every waiting frame multiplies by this result—returning 0 would make the whole product 0!`,
+                    correct: true,
+                    feedback: `Brilliant! 1 is the multiplicative identity (and mathematically 0! = 1), so returning 1 preserves the product as the stack unwinds.`
+                  },
+                  {
+                    text: `Because Python does not allow functions to return 0`,
+                    correct: false,
+                    feedback: `Python allows returning 0, but if factorial(0) returned 0, then 1 * 0 = 0, 2 * 0 = 0, and every factorial would equal 0!`
+                  }
+                ]
+              }
+            });
+
+            stack[stack.length - 1].status = "Returning 1 to caller";
+            stack[stack.length - 1].returnBadge = "Returns 1";
+
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: "Returning 1",
+              activeLine: 3,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              memRec: activeFramesList,
+              memLoop: { total: 1, i: "done" },
+              narration: `Line 3 returns 1. Now the Call Stack can finally start unwinding and completing all the paused multiplications!`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+            break;
+          }
+
+          if (!breakBase) {
+            steps.push({
+              phase: "WINDING",
+              phaseLabel: "WINDING UP: Pushing Frame",
+              subHint: `x = ${x} != 0`,
+              activeLine: 2,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              memRec: activeFramesList,
+              memLoop: { total: "...", i: x },
+              narration: `Inside factorial(${x}), line 2 checks "if x == 0:". Since ${x} == 0 is False, Python jumps to the else block.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+          }
+
+          const recLine = breakBase ? 3 : 5;
+          stack[stack.length - 1].state = "waiting";
+          stack[stack.length - 1].status = `Paused at line ${recLine}: waiting for ${x} * factorial(${x - 1})`;
+
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Pushing Frame",
+            subHint: `Pausing at ${x} * factorial(${x - 1})`,
+            activeLine: recLine,
+            waitingLines: [...waitLines, recLine],
+            activeFuncCount: stack.length - 1,
+            memRec: activeFramesList,
+            memLoop: { total: "...", i: x },
+            narration: `Line ${recLine} needs to compute ${x} * factorial(${x - 1}). Python pauses factorial(${x}) in memory and pushes factorial(${x - 1}) on top of it.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+        }
+
+        if (breakBase) {
+          stack.push({
+            id: "fact-crash",
+            funcName: "factorial",
+            sig: `factorial(${minStop - 1}) ... factorial(-994)`,
+            locals: "x = -994 (1000 frames full!)",
+            status: "RecursionError: maximum recursion depth exceeded",
+            state: "error"
+          });
+          consoleHistory.push({
+            text: "RecursionError: maximum recursion depth exceeded",
+            type: "err"
+          });
+          steps.push({
+            phase: "ERROR",
+            phaseLabel: "RecursionError",
+            subHint: "Stack overflowed!",
+            activeLine: 3,
+            waitingLines: [3],
+            activeFuncCount: 999,
+            memRec: ["x=4", "x=3", "...", "x=-994 (CRASH)"],
+            memLoop: { total: 24, i: "done" },
+            narration: `Without "if x == 0: return 1", factorial keeps calling negative numbers until Python hits its 1,000-frame limit and raises RecursionError!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          return { codeLines, steps };
+        }
+
+        // Unwinding phase
+        stack.pop(); // Pop factorial(0)
+        let runningProduct = 1;
+        for (let x = 1; x <= startX; x++) {
+          const prevProd = runningProduct;
+          runningProduct = x * prevProd;
+          const topIdx = stack.length - 1;
+          stack[topIdx].state = "returning";
+          stack[topIdx].status = `Unwound! Computed ${x} * ${prevProd} = ${runningProduct}`;
+          stack[topIdx].returnBadge = `Returns ${runningProduct}`;
+
+          const remainingFrames = [];
+          for (let k = startX; k >= x; k--) remainingFrames.push(`x=${k}`);
+          const waitLines = stack.slice(1, -1).map(() => 5);
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning & Popping",
+            subHint: `factorial(${x}) returns ${runningProduct}`,
+            activeLine: 5,
+            waitingLines: waitLines,
+            activeFuncCount: stack.length - 1,
+            memRec: remainingFrames,
+            memLoop: { total: runningProduct, i: x },
+            narration: `factorial(${x}) receives ${prevProd} from below, finishes multiplying ${x} * ${prevProd} = ${runningProduct}, and returns ${runningProduct} up the stack!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory],
+            prediction:
+              x === 2 && startX >= 3
+                ? {
+                    question: `factorial(2) just returned 2 to factorial(3). What will factorial(3) compute and return next?`,
+                    options: [
+                      {
+                        text: `3 * 2 = 6`,
+                        correct: true,
+                        feedback: `Yes! factorial(3) was waiting with x = 3, so it computes 3 * 2 = 6.`
+                      },
+                      {
+                        text: `3 * 1 = 3`,
+                        correct: false,
+                        feedback: `Look at factorial(2)'s return badge: it returned 2, not 1!`
+                      }
+                    ]
+                  }
+                : null
+          });
+
+          stack.pop();
+        }
+
+        // Complete in __main__
+        stack[0].state = "main";
+        stack[0].locals = `result = ${runningProduct}`;
+        stack[0].status = `Received ${runningProduct}!`;
+        consoleHistory.push({ text: `>>> print(result)`, type: "cmd" });
+        consoleHistory.push({ text: `${runningProduct}`, type: "ret" });
+
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "COMPLETE",
+          subHint: `Result = ${runningProduct}`,
+          activeLine: 8,
+          waitingLines: [],
+          activeFuncCount: 0,
+          memRec: [],
+          memLoop: { total: runningProduct, i: "done" },
+          narration: `All factorial frames have popped! __main__ stores result = ${runningProduct} and prints ${runningProduct}.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        return { codeLines, steps };
+      }
+
+      // --- TRACE C1: NESTED FOLDER SEARCH (Tab 3A) ---
+      function buildFolderSearchTrace(targetFile) {
+        const codeLines = [
+          "def find_file(folder, target):",
+          "    for item in folder:",
+          "        if item == target:",
+          "            return True",
+          "        if type(item) == list:",
+          "            if find_file(item, target):",
+          "                return True",
+          "    return False",
+          "",
+          `root = ["notes.txt", ["lab1.py", ["secret.py"]], "todo.txt"]`,
+          `print(find_file(root, "${targetFile}"))`
+        ];
+
+        const steps = [];
+        const consoleHistory = [{ text: `>>> find_file(root, "${targetFile}")`, type: "cmd" }];
+        const cloneStack = (arr) => arr.map((f) => ({ ...f }));
+
+        // Helper for folder visual state
+        const makeTreeState = (activeId, foundId, checkedIds) => ({
+          type: "folder",
+          activeId,
+          foundId,
+          checkedIds: [...checkedIds]
+        });
+
+        const checked = [];
+        let stack = [
+          {
+            id: "main",
+            funcName: "__main__",
+            sig: "__main__ (Module)",
+            locals: `target = "${targetFile}"`,
+            status: "Calling find_file(root, target)",
+            state: "main"
+          }
+        ];
+
+        steps.push({
+          phase: "INIT",
+          phaseLabel: "INITIALIZE",
+          subHint: "Searching nested folders",
+          activeLine: 11,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: makeTreeState("root", null, checked),
+          narration: `Notice that "root" contains files AND nested subfolders (lists inside lists). Let's see how find_file searches every folder depth automatically!`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        // Push root frame
+        stack.push({
+          id: "f-root",
+          funcName: "find_file",
+          sig: `find_file(root, "${targetFile}")`,
+          locals: 'folder = root (3 items)',
+          status: 'Checking item 0: "notes.txt"',
+          state: "active"
+        });
+
+        steps.push({
+          phase: "WINDING",
+          phaseLabel: "WINDING UP: Searching Root",
+          subHint: "Opened root folder",
+          activeLine: 2,
+          waitingLines: [],
+          activeFuncCount: 1,
+          extraVisual: makeTreeState("notes.txt", null, checked),
+          narration: `Inside root, the loop looks at "notes.txt". It's not "${targetFile}" and it's not a subfolder, so we move to the next item.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        checked.push("notes.txt");
+        stack[stack.length - 1].state = "waiting";
+        stack[stack.length - 1].status = 'Paused at line 6: exploring Subfolder 1';
+
+        steps.push({
+          phase: "WINDING",
+          phaseLabel: "WINDING UP: Subfolder Found!",
+          subHint: "Entering Subfolder 1",
+          activeLine: 6,
+          waitingLines: [6],
+          activeFuncCount: 1,
+          extraVisual: makeTreeState("sub1", null, checked),
+          narration: `Item 1 is a subfolder: ["lab1.py", ["secret.py"]]! Python pauses root at line 6 and pushes a new find_file frame to search inside Subfolder 1.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory],
+          prediction: {
+            question: `Why is pausing root on the Call Stack so helpful when entering Subfolder 1?`,
+            options: [
+              {
+                text: `Because Python remembers to come back and finish checking "todo.txt" in root if needed!`,
+                correct: true,
+                feedback: `Yes! The Call Stack acts as an automatic bookmark so Python never loses its place in outer folders.`
+              },
+              {
+                text: `Because Python deletes "todo.txt" from memory`,
+                correct: false,
+                feedback: `Nothing is deleted—root stays safely paused on the stack while we check inside the subfolder.`
+              }
+            ]
+          }
+        });
+
+        // Push Subfolder 1
+        stack.push({
+          id: "f-sub1",
+          funcName: "find_file",
+          sig: `find_file(sub1, "${targetFile}")`,
+          locals: 'folder = ["lab1.py", [...]]',
+          status: 'Checking "lab1.py"',
+          state: "active"
+        });
+
+        if (targetFile === "lab1.py") {
+          stack[stack.length - 1].state = "base";
+          stack[stack.length - 1].status = 'Match found! "lab1.py" == target';
+          stack[stack.length - 1].returnBadge = "Returns True";
+
+          steps.push({
+            phase: "BASE",
+            phaseLabel: "BASE CASE REACHED",
+            subHint: "Found lab1.py!",
+            activeLine: 4,
+            waitingLines: [6],
+            activeFuncCount: 2,
+            extraVisual: makeTreeState("lab1.py", "lab1.py", checked),
+            narration: `Found "lab1.py" inside Subfolder 1! Line 4 returns True up the stack without even needing to open Subfolder 2.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+          stack[stack.length - 1].state = "returning";
+          stack[stack.length - 1].status = "Subfolder returned True -> returning True!";
+          stack[stack.length - 1].returnBadge = "Returns True";
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning True",
+            subHint: "Passing True to __main__",
+            activeLine: 7,
+            waitingLines: [],
+            activeFuncCount: 1,
+            extraVisual: makeTreeState(null, "lab1.py", checked),
+            narration: `Root receives True from Subfolder 1 at line 6, so line 7 immediately returns True back to __main__!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+          consoleHistory.push({ text: "True", type: "ret" });
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "COMPLETE",
+            subHint: "File found!",
+            activeLine: 11,
+            waitingLines: [],
+            activeFuncCount: 0,
+            extraVisual: makeTreeState(null, "lab1.py", checked),
+            narration: `Done! find_file returned True.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          return { codeLines, steps };
+        }
+
+        // Otherwise lab1.py is not target; enter Subfolder 2
+        checked.push("lab1.py");
+        stack[stack.length - 1].state = "waiting";
+        stack[stack.length - 1].status = "Paused at line 6: exploring Subfolder 2";
+
+        steps.push({
+          phase: "WINDING",
+          phaseLabel: "WINDING UP: Deeper Subfolder",
+          subHint: "Entering Subfolder 2 (Depth 3)",
+          activeLine: 6,
+          waitingLines: [6],
+          activeFuncCount: 2,
+          extraVisual: makeTreeState("sub2", null, checked),
+          narration: `"lab1.py" wasn't a match, and item 1 of Subfolder 1 is another nested folder ["secret.py"]! Python pushes a 3rd find_file frame onto the stack.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        stack.push({
+          id: "f-sub2",
+          funcName: "find_file",
+          sig: `find_file(sub2, "${targetFile}")`,
+          locals: 'folder = ["secret.py"]',
+          status: 'Checking "secret.py"',
+          state: "active"
+        });
+
+        if (targetFile === "secret.py") {
+          stack[stack.length - 1].state = "base";
+          stack[stack.length - 1].status = 'Match found! "secret.py" == target';
+          stack[stack.length - 1].returnBadge = "Returns True";
+
+          steps.push({
+            phase: "BASE",
+            phaseLabel: "BASE CASE REACHED",
+            subHint: "Found secret.py at depth 3!",
+            activeLine: 4,
+            waitingLines: [6],
+            activeFuncCount: 3,
+            extraVisual: makeTreeState("secret.py", "secret.py", checked),
+            narration: `3 frames deep on the Call Stack, Python finds "secret.py"! Line 4 returns True, which cascades back up through every waiting folder frame.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+          stack[stack.length - 1].state = "returning";
+          stack[stack.length - 1].status = "Received True -> returning True";
+          stack[stack.length - 1].returnBadge = "Returns True";
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning True",
+            subHint: "Unwinding Subfolder 1",
+            activeLine: 7,
+            waitingLines: [6],
+            activeFuncCount: 2,
+            extraVisual: makeTreeState(null, "secret.py", checked),
+            narration: `Subfolder 1 receives True and passes True up to root.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+          stack[stack.length - 1].state = "returning";
+          stack[stack.length - 1].status = "Received True -> returning True";
+          stack[stack.length - 1].returnBadge = "Returns True";
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning True",
+            subHint: "Unwinding root",
+            activeLine: 7,
+            waitingLines: [],
+            activeFuncCount: 1,
+            extraVisual: makeTreeState(null, "secret.py", checked),
+            narration: `Root receives True and returns True to __main__!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack.pop();
+          consoleHistory.push({ text: "True", type: "ret" });
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "COMPLETE",
+            subHint: "Found secret.py!",
+            activeLine: 11,
+            waitingLines: [],
+            activeFuncCount: 0,
+            extraVisual: makeTreeState(null, "secret.py", checked),
+            narration: `Complete! The exact same 8-line function works whether a file is 1 folder deep or 20 folders deep.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          return { codeLines, steps };
+        }
+
+        // Case: missing.py -> explores all folders, unwinds False, checks todo.txt, returns False
+        checked.push("secret.py");
+        stack[stack.length - 1].state = "returning";
+        stack[stack.length - 1].status = "End of Subfolder 2 -> returning False";
+        stack[stack.length - 1].returnBadge = "Returns False";
+
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "UNWINDING: Dead End (False)",
+          subHint: "Subfolder 2 empty/done",
+          activeLine: 8,
+          waitingLines: [6],
+          activeFuncCount: 3,
+          extraVisual: makeTreeState(null, null, checked),
+          narration: `"secret.py" didn't match "${targetFile}". Subfolder 2 finishes its loop and returns False to Subfolder 1.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        stack.pop();
+        stack[stack.length - 1].state = "returning";
+        stack[stack.length - 1].status = "End of Subfolder 1 -> returning False";
+        stack[stack.length - 1].returnBadge = "Returns False";
+
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "UNWINDING: Dead End (False)",
+          subHint: "Subfolder 1 done",
+          activeLine: 8,
+          waitingLines: [6],
+          activeFuncCount: 2,
+          extraVisual: makeTreeState(null, null, checked),
+          narration: `Subfolder 1 also has no more items, so it returns False back to root.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        stack.pop();
+        stack[stack.length - 1].state = "active";
+        stack[stack.length - 1].status = 'Resumed in root! Checking "todo.txt"';
+
+        steps.push({
+          phase: "WINDING",
+          phaseLabel: "RESUMED OUTER FOLDER",
+          subHint: "Checking remaining item in root",
+          activeLine: 2,
+          waitingLines: [],
+          activeFuncCount: 1,
+          extraVisual: makeTreeState("todo.txt", null, checked),
+          narration: `Because root was saved on the Call Stack, Python resumes right where it left off and checks "todo.txt"!`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        checked.push("todo.txt");
+        stack[stack.length - 1].state = "returning";
+        stack[stack.length - 1].status = "All folders checked -> returning False";
+        stack[stack.length - 1].returnBadge = "Returns False";
+
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "UNWINDING: Returning False",
+          subHint: "Not found anywhere",
+          activeLine: 8,
+          waitingLines: [],
+          activeFuncCount: 1,
+          extraVisual: makeTreeState(null, null, checked),
+          narration: `"todo.txt" isn't a match either. Root finishes its loop and returns False to __main__.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        stack.pop();
+        consoleHistory.push({ text: "False", type: "ret" });
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "COMPLETE",
+          subHint: "Search complete (False)",
+          activeLine: 11,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: makeTreeState(null, null, checked),
+          narration: `Every folder and subfolder was checked cleanly, returning False.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        return { codeLines, steps };
+      }
+
+      // --- TRACE C2: PALINDROME CHECKER (Tab 3B) ---
+      function buildPalindromeTrace(word) {
+        const codeLines = [
+          "def is_palindrome(word):",
+          "    if len(word) <= 1:",
+          "        return True",
+          "    if word[0] != word[-1]:",
+          "        return False",
+          "    return is_palindrome(word[1:-1])",
+          "",
+          `print(is_palindrome("${word}"))`
+        ];
+
+        const steps = [];
+        const consoleHistory = [{ text: `>>> is_palindrome("${word}")`, type: "cmd" }];
+        const cloneStack = (arr) => arr.map((f) => ({ ...f }));
+
+        let stack = [
+          {
+            id: "main",
+            funcName: "__main__",
+            sig: "__main__ (Module)",
+            locals: `word = "${word}"`,
+            status: `Calling is_palindrome("${word}")`,
+            state: "main"
+          }
+        ];
+
+        steps.push({
+          phase: "INIT",
+          phaseLabel: "INITIALIZE",
+          subHint: "Checking palindrome",
+          activeLine: 8,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: { type: "palindrome", fullWord: word, left: 0, right: word.length - 1, status: "active" },
+          narration: `A word is a palindrome if its first and last letters match AND the inner slice word[1:-1] is also a palindrome.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        let left = 0;
+        let right = word.length - 1;
+        let resultBool = true;
+
+        while (true) {
+          const sub = word.slice(left, right + 1);
+          const waitLines = stack.slice(1).map(() => 6);
+
+          stack.push({
+            id: `pal-${left}`,
+            funcName: "is_palindrome",
+            sig: `is_palindrome("${sub}")`,
+            locals: `word = "${sub}" (len=${sub.length})`,
+            status: "Checking length <= 1",
+            state: "active"
+          });
+
+          if (sub.length <= 1) {
+            stack[stack.length - 1].state = "base";
+            stack[stack.length - 1].status = `Base case! len("${sub}") <= 1`;
+            stack[stack.length - 1].returnBadge = "Returns True";
+
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: `0 or 1 letter left ("${sub}")`,
+              activeLine: 3,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              extraVisual: { type: "palindrome", fullWord: word, left, right, status: "match" },
+              narration: `The remaining middle slice "${sub}" has length ${sub.length} (<= 1), which is always a palindrome! Base case returns True.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+            resultBool = true;
+            break;
+          }
+
+          const firstChar = sub[0];
+          const lastChar = sub[sub.length - 1];
+          const matches = firstChar === lastChar;
+
+          if (!matches) {
+            stack[stack.length - 1].state = "error";
+            stack[stack.length - 1].status = `'${firstChar}' != '${lastChar}' -> False!`;
+            stack[stack.length - 1].returnBadge = "Returns False";
+
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "EARLY BASE CASE (Mismatch)",
+              subHint: `'${firstChar}' != '${lastChar}'`,
+              activeLine: 5,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              extraVisual: { type: "palindrome", fullWord: word, left, right, status: "mismatch" },
+              narration: `Outer letters '${firstChar}' and '${lastChar}' do NOT match! Line 5 immediately returns False without checking any further.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+            resultBool = false;
+            break;
+          }
+
+          // Outer letters match!
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Outer Letters Match",
+            subHint: `'${firstChar}' == '${lastChar}'`,
+            activeLine: 4,
+            waitingLines: waitLines,
+            activeFuncCount: stack.length - 1,
+            extraVisual: { type: "palindrome", fullWord: word, left, right, status: "match" },
+            narration: `First letter '${firstChar}' equals last letter '${lastChar}'! Now we peel them off and recursively check the smaller middle "${sub.slice(1, -1)}".`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          stack[stack.length - 1].state = "waiting";
+          stack[stack.length - 1].status = `Paused at line 6: waiting for "${sub.slice(1, -1)}"`;
+
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Shrinking Word",
+            subHint: `Calling is_palindrome("${sub.slice(1, -1)}")`,
+            activeLine: 6,
+            waitingLines: [...waitLines, 6],
+            activeFuncCount: stack.length - 1,
+            extraVisual: { type: "palindrome", fullWord: word, left: left + 1, right: right - 1, status: "active" },
+            narration: `Line 6 calls is_palindrome("${sub.slice(1, -1)}"), shrinking the string by 2 characters.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+
+          left++;
+          right--;
+        }
+
+        // Unwind all remaining palindrome frames
+        stack.pop();
+        while (stack.length > 1) {
+          const topIdx = stack.length - 1;
+          stack[topIdx].state = "returning";
+          stack[topIdx].status = `Passing ${resultBool ? "True" : "False"} up the stack`;
+          stack[topIdx].returnBadge = `Returns ${resultBool ? "True" : "False"}`;
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Returning & Popping",
+            subHint: `Returning ${resultBool ? "True" : "False"}`,
+            activeLine: 6,
+            waitingLines: stack.slice(1, -1).map(() => 6),
+            activeFuncCount: stack.length - 1,
+            extraVisual: { type: "palindrome", fullWord: word, left: 0, right: word.length - 1, status: resultBool ? "match" : "mismatch" },
+            narration: `${stack[topIdx].sig} receives ${resultBool ? "True" : "False"} and passes it straight up to its caller.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          stack.pop();
+        }
+
+        consoleHistory.push({ text: resultBool ? "True" : "False", type: "ret" });
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "COMPLETE",
+          subHint: `Result = ${resultBool ? "True" : "False"}`,
+          activeLine: 8,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: { type: "palindrome", fullWord: word, left: 0, right: word.length - 1, status: resultBool ? "match" : "mismatch" },
+          narration: `All frames unwound! "${word}" is ${resultBool ? "" : "NOT "}a palindrome (${resultBool ? "True" : "False"}).`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        return { codeLines, steps };
+      }
+
+      // --- TRACE C3: SUM OF A LIST (Tab 3C) ---
+      function buildSumListTrace(nums) {
+        const listStr = `[${nums.join(", ")}]`;
+        const codeLines = [
+          "def sum_list(nums):",
+          "    if len(nums) == 0:",
+          "        return 0",
+          "    return nums[0] + sum_list(nums[1:])",
+          "",
+          `total = sum_list(${listStr})`,
+          "print(total)"
+        ];
+
+        const steps = [];
+        const consoleHistory = [{ text: `>>> total = sum_list(${listStr})`, type: "cmd" }];
+        const cloneStack = (arr) => arr.map((f) => ({ ...f }));
+
+        let stack = [
+          {
+            id: "main",
+            funcName: "__main__",
+            sig: "__main__ (Module)",
+            locals: "total = ?",
+            status: `Calling sum_list(${listStr})`,
+            state: "main"
+          }
+        ];
+
+        steps.push({
+          phase: "INIT",
+          phaseLabel: "INITIALIZE",
+          subHint: "Recursive list sum",
+          activeLine: 6,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: { type: "sumlist", fullNums: nums, startIdx: 0 },
+          narration: `We break the list into two parts: the first number (nums[0]) plus the sum of the rest of the list (nums[1:]).`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        for (let i = 0; i <= nums.length; i++) {
+          const slice = nums.slice(i);
+          const sliceStr = `[${slice.join(", ")}]`;
+          const isBase = slice.length === 0;
+          const waitLines = stack.slice(1).map(() => 4);
+
+          stack.push({
+            id: `sum-${i}`,
+            funcName: "sum_list",
+            sig: `sum_list(${sliceStr})`,
+            locals: `nums = ${sliceStr}`,
+            status: isBase ? "Empty list! Base case" : `Head = ${slice[0]}, waiting on tail`,
+            state: isBase ? "base" : "active"
+          });
+
+          if (isBase) {
+            stack[stack.length - 1].returnBadge = "Returns 0";
+            steps.push({
+              phase: "BASE",
+              phaseLabel: "BASE CASE REACHED",
+              subHint: "Empty list [] -> returns 0",
+              activeLine: 3,
+              waitingLines: waitLines,
+              activeFuncCount: stack.length - 1,
+              extraVisual: { type: "sumlist", fullNums: nums, startIdx: i },
+              narration: `The list slice is now empty ([]), so len(nums) == 0 is True! The sum of an empty list is 0.`,
+              stack: cloneStack(stack),
+              consoleLines: [...consoleHistory]
+            });
+            break;
+          }
+
+          const tailStr = `[${slice.slice(1).join(", ")}]`;
+          stack[stack.length - 1].state = "waiting";
+          stack[stack.length - 1].status = `Paused at line 4: ${slice[0]} + sum_list(${tailStr})`;
+
+          steps.push({
+            phase: "WINDING",
+            phaseLabel: "WINDING UP: Slicing List",
+            subHint: `${slice[0]} + sum_list(${tailStr})`,
+            activeLine: 4,
+            waitingLines: [...waitLines, 4],
+            activeFuncCount: stack.length - 1,
+            extraVisual: { type: "sumlist", fullNums: nums, startIdx: i },
+            narration: `Frame holds onto nums[0] = ${slice[0]} and calls sum_list(${tailStr}) with a shorter list.`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+        }
+
+        // Unwind addition
+        stack.pop();
+        let acc = 0;
+        for (let i = nums.length - 1; i >= 0; i--) {
+          const prev = acc;
+          acc += nums[i];
+          const topIdx = stack.length - 1;
+          stack[topIdx].state = "returning";
+          stack[topIdx].status = `Computed ${nums[i]} + ${prev} = ${acc}`;
+          stack[topIdx].returnBadge = `Returns ${acc}`;
+
+          steps.push({
+            phase: "UNWINDING",
+            phaseLabel: "UNWINDING: Adding Values",
+            subHint: `${nums[i]} + ${prev} = ${acc}`,
+            activeLine: 4,
+            waitingLines: stack.slice(1, -1).map(() => 4),
+            activeFuncCount: stack.length - 1,
+            extraVisual: { type: "sumlist", fullNums: nums, startIdx: i },
+            narration: `Frame receives ${prev} from below, adds its saved head ${nums[i]} + ${prev} = ${acc}, and returns ${acc}!`,
+            stack: cloneStack(stack),
+            consoleLines: [...consoleHistory]
+          });
+          stack.pop();
+        }
+
+        stack[0].locals = `total = ${acc}`;
+        stack[0].status = `Received ${acc}!`;
+        consoleHistory.push({ text: `${acc}`, type: "ret" });
+
+        steps.push({
+          phase: "UNWINDING",
+          phaseLabel: "COMPLETE",
+          subHint: `Total = ${acc}`,
+          activeLine: 7,
+          waitingLines: [],
+          activeFuncCount: 0,
+          extraVisual: { type: "sumlist", fullNums: nums, startIdx: 0 },
+          narration: `All frames unwound! The total sum is ${acc}.`,
+          stack: cloneStack(stack),
+          consoleLines: [...consoleHistory]
+        });
+
+        return { codeLines, steps };
+      }
+
+      /* ======================================================================
+         3. APPLICATION STATE & DOM REFERENCES
+         ====================================================================== */
+      const state = {
+        activeTab: "countdown", // 'countdown' | 'factorial' | 'why' | 'limits'
+        whySubTab: "folder",    // 'folder' | 'palindrome' | 'sumlist'
+        inputVal: "4",
+        breakBase: false,
+        predictMode: false,
+        predictionAnsweredForStep: -1,
+        trace: null,
+        stepIndex: 0,
+        playTimer: null
+      };
+
+      const INPUT_OPTIONS = {
+        countdown: [
+          { value: "3", label: "n = 3" },
+          { value: "4", label: "n = 4 (Worksheet)" },
+          { value: "5", label: "n = 5" },
+          { value: "0", label: "n = 0 (Immediate Base Case)" }
+        ],
+        factorial: [
+          { value: "3", label: "x = 3" },
+          { value: "4", label: "x = 4" },
+          { value: "5", label: "x = 5" },
+          { value: "0", label: "x = 0 (Base Case)" }
+        ],
+        folder: [
+          { value: "secret.py", label: 'target = "secret.py" (Depth 3)' },
+          { value: "lab1.py", label: 'target = "lab1.py" (Depth 2)' },
+          { value: "missing.py", label: 'target = "missing.py" (Not Found)' }
+        ],
+        palindrome: [
+          { value: "racecar", label: 'word = "racecar" (True)' },
+          { value: "noon", label: 'word = "noon" (True)' },
+          { value: "python", label: 'word = "python" (False)' }
+        ],
+        sumlist: [
+          { value: "4,7,2,5", label: "nums = [4, 7, 2, 5]" },
+          { value: "10,20,30", label: "nums = [10, 20, 30]" },
+          { value: "8", label: "nums = [8]" }
+        ]
+      };
+
+      const WORKSHEET_PROMPTS = {
+        countdown: [
+          {
+            q: "Ex. 1 (Q2): What is this algorithm's base case?",
+            hint: "Look at line 2 in the Python code panel. Which condition stops countdown from calling itself again?"
+          },
+          {
+            q: "Ex. 1 (Q4): What is the 'simpler input value' and how does it reach the base case?",
+            hint: "Compare the argument in countdown(n) with the recursive call on line 6. Each step reduces n by 1 until n hits 0 or less."
+          },
+          {
+            q: "Ex. 1 (Q5): How can you rewrite countdown using a loop instead of recursion?",
+            hint: "Think about a while loop (while n > 0:) or a for loop using range(n, 0, -1) that prints n and then prints 'Blastoff!' after the loop ends."
+          }
+        ],
+        factorial: [
+          {
+            q: "Ex. 2 (Q1–Q2): When do you stop computing a factorial, and what is factorial(0)?",
+            hint: "Step through x = 4 until the green BASE CASE REACHED badge appears. Look at line 3 to see what factorial(0) returns."
+          },
+          {
+            q: "Ex. 2 (Issues Q2): How many instances of 'factorial' are on the stack when you reach the base case (in terms of x)?",
+            hint: "Check the 'Active Function Calls' pill when x = 0 is reached! For x = 4, there are 5 frames (4, 3, 2, 1, and 0). For x = 3, there are 4 frames. What expression in terms of x matches that pattern?"
+          },
+          {
+            q: "Ex. 2 (Q4): Writing factorial_loop(x) iteratively",
+            hint: "Look at the 'Loop Memory (1 Box Reused)' box on the left: start a variable at 1, use a for loop from 1 up to x (inclusive), and multiply your variable by each number!"
+          }
+        ],
+        why: [
+          {
+            q: "Explore Recursive Algorithms (Final Table): What 3 recursive applications can you describe?",
+            hint: "1) Nested Folder/File Tree Search (shown here!), 2) Binary Search (dividing a sorted list in half repeatedly), 3) Fractal / Tree Drawing (branches splitting into smaller branches)."
+          },
+          {
+            q: "Why does Nested Folder Search benefit from recursion?",
+            hint: "A normal loop only checks one folder level. Recursion uses the Call Stack to remember outer folders automatically while diving into subfolders of any depth."
+          }
+        ]
+      };
+
+      /* ======================================================================
+         4. TRACE REBUILDING & RENDERING FUNCTIONS
+         ====================================================================== */
+      function populateInputDropdown() {
+        const key = state.activeTab === "why" ? state.whySubTab : state.activeTab;
+        const opts = INPUT_OPTIONS[key] || [];
+        const selectEl = document.getElementById("inputSelect");
+        selectEl.innerHTML = "";
+        opts.forEach((opt) => {
+          const el = document.createElement("option");
+          el.value = opt.value;
+          el.textContent = opt.label;
+          selectEl.appendChild(el);
+        });
+        state.inputVal = opts[0].value;
+      }
+
+      function rebuildTrace() {
+        stopAutoPlay();
+        state.stepIndex = 0;
+        state.predictionAnsweredForStep = -1;
+
+        if (state.activeTab === "countdown") {
+          state.trace = buildCountdownTrace(parseInt(state.inputVal, 10), state.breakBase);
+        } else if (state.activeTab === "factorial") {
+          state.trace = buildFactorialTrace(parseInt(state.inputVal, 10), state.breakBase);
+        } else if (state.activeTab === "why") {
+          if (state.whySubTab === "folder") {
+            state.trace = buildFolderSearchTrace(state.inputVal);
+          } else if (state.whySubTab === "palindrome") {
+            state.trace = buildPalindromeTrace(state.inputVal);
+          } else {
+            const nums = state.inputVal.split(",").map((s) => parseInt(s.trim(), 10));
+            state.trace = buildSumListTrace(nums);
+          }
+        }
+        renderCurrentStep();
+      }
+
+      function renderWorksheetPrompts() {
+        const listEl = document.getElementById("worksheetPromptsList");
+        const prompts = WORKSHEET_PROMPTS[state.activeTab] || [];
+        listEl.innerHTML = "";
+
+        prompts.forEach((item, idx) => {
+          const card = document.createElement("div");
+          card.className = "ws-prompt-card";
+          card.innerHTML = `
+            <div class="ws-q-title">${item.q}</div>
+            <button type="button" class="ws-hint-btn" data-hint-idx="${idx}">
+              &#128161; Need a Nudge?
+            </button>
+            <div class="ws-hint-body" id="ws-hint-${idx}">${item.hint}</div>
+          `;
+          listEl.appendChild(card);
+        });
+
+        listEl.querySelectorAll(".ws-hint-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const target = document.getElementById(`ws-hint-${btn.dataset.hintIdx}`);
+            if (target) {
+              target.classList.toggle("open");
+              btn.innerHTML = target.classList.contains("open")
+                ? "&#128161; Hide Hint"
+                : "&#128161; Need a Nudge?";
+            }
+          });
+        });
+      }
+
+      function renderExtraStructure(extra) {
+        const stage = document.getElementById("extraStructureStage");
+        const label = document.getElementById("extraStructureLabel");
+        const content = document.getElementById("extraStructureContent");
+
+        if (!extra) {
+          stage.style.display = "none";
+          return;
+        }
+
+        stage.style.display = "block";
+
+        if (extra.type === "folder") {
+          label.textContent = "Visual Folder Structure";
+          const cls = (id) => {
+            if (extra.foundId === id) return "tree-node found-node";
+            if (extra.activeId === id) return "tree-node active-node";
+            if (extra.checkedIds.includes(id)) return "tree-node checked-node";
+            return "tree-node";
+          };
+          content.innerHTML = `
+            <div class="folder-tree-box">
+              <div>&#128193; <span class="${cls("root")}">root/</span></div>
+              <div style="padding-left: 1.2rem;">&#128196; <span class="${cls("notes.txt")}">notes.txt</span></div>
+              <div style="padding-left: 1.2rem;">&#128194; <span class="${cls("sub1")}">subfolder_1/</span></div>
+              <div style="padding-left: 2.4rem;">&#128196; <span class="${cls("lab1.py")}">lab1.py</span></div>
+              <div style="padding-left: 2.4rem;">&#128194; <span class="${cls("sub2")}">subfolder_2/</span></div>
+              <div style="padding-left: 3.6rem;">&#128196; <span class="${cls("secret.py")}">secret.py</span></div>
+              <div style="padding-left: 1.2rem;">&#128196; <span class="${cls("todo.txt")}">todo.txt</span></div>
+            </div>
+          `;
+        } else if (extra.type === "palindrome") {
+          label.textContent = "String Slice Comparison";
+          const chars = extra.fullWord.split("");
+          const tilesHtml = chars
+            .map((ch, idx) => {
+              let c = "char-tile";
+              if (idx < extra.left || idx > extra.right) {
+                c += " dimmed";
+              } else if (idx === extra.left || idx === extra.right) {
+                if (extra.status === "match") c += " edge-match";
+                else if (extra.status === "mismatch") c += " edge-mismatch";
+                else c += " inner-active";
+              } else {
+                c += " inner-active";
+              }
+              return `<div class="${c}">${ch}</div>`;
+            })
+            .join("");
+          content.innerHTML = `<div class="char-tiles">${tilesHtml}</div>`;
+        } else if (extra.type === "sumlist") {
+          label.textContent = "Remaining List Slice";
+          const tilesHtml = extra.fullNums
+            .map((num, idx) => {
+              let c = "char-tile";
+              if (idx < extra.startIdx) c += " dimmed";
+              else if (idx === extra.startIdx) c += " edge-match";
+              else c += " inner-active";
+              return `<div class="${c}">${num}</div>`;
+            })
+            .join("");
+          const emptyBadge =
+            extra.startIdx >= extra.fullNums.length
+              ? `<div class="char-tile edge-match" style="font-size: 0.85rem;">[] (Base)</div>`
+              : "";
+          content.innerHTML = `<div class="char-tiles">${tilesHtml}${emptyBadge}</div>`;
+        }
+      }
+
+      function renderCurrentStep() {
+        const { codeLines, steps } = state.trace;
+        const step = steps[state.stepIndex];
+
+        // 1. Step Counter & Phase Pill
+        document.getElementById("stepCounterBadge").textContent = `Step ${state.stepIndex + 1} of ${steps.length}`;
+        const pill = document.getElementById("phasePill");
+        pill.className = `phase-pill phase-${step.phase}`;
+        pill.textContent = step.phaseLabel;
+        document.getElementById("phaseSubHint").textContent = step.subHint;
+
+        // 2. Render Python Code Lines
+        const codeEl = document.getElementById("codeDisplay");
+        codeEl.innerHTML = codeLines
+          .map((line, idx) => {
+            const lineNum = idx + 1;
+            const isActive = lineNum === step.activeLine;
+            const isWaiting = !isActive && step.waitingLines.includes(lineNum);
+            const rowClass = isActive
+              ? "code-line active-line"
+              : isWaiting
+              ? "code-line waiting-line"
+              : "code-line";
+            const pointer = isActive ? "&#9654;" : isWaiting ? "&#9208;" : "";
+            return `<div class="${rowClass}"><span class="line-pointer">${pointer}</span><span class="line-num">${lineNum}</span><span>${highlightPythonLine(line)}</span></div>`;
+          })
+          .join("");
+
+        // 3. Narrator Box
+        document.getElementById("narratorText").textContent = step.narration;
+
+        // 4. Factorial Memory Footprint Box (Tab 2 only)
+        const memBox = document.getElementById("factorialMemoryBox");
+        if (state.activeTab === "factorial" && step.memRec) {
+          memBox.style.display = "block";
+          const recContainer = document.getElementById("memRecBlocks");
+          recContainer.innerHTML =
+            step.memRec.length === 0
+              ? `<span style="font-size:0.75rem; color:var(--text-muted);">0 active frames</span>`
+              : step.memRec.map((lbl) => `<span class="mem-chip-rec">${lbl}</span>`).join("");
+
+          const loopContainer = document.getElementById("memLoopBlocks");
+          loopContainer.innerHTML = `<span class="mem-chip-loop">total = ${step.memLoop.total} (1 box)</span>`;
+        } else {
+          memBox.style.display = "none";
+        }
+
+        // 5. Call Stack Tower (LIFO)
+        const totalFrames = step.stack.length;
+        document.getElementById("stackCountBadge").textContent =
+          totalFrames === 1 ? "1 Frame" : `${totalFrames} Frames`;
+        document.getElementById("activeFuncCount").textContent = step.activeFuncCount;
+
+        const stackListEl = document.getElementById("stackFramesList");
+        stackListEl.innerHTML = step.stack
+          .map((frame, idx) => {
+            const isTop = idx === step.stack.length - 1 && frame.state !== "main";
+            let frameClass = "stack-frame";
+            let badgeHtml = "";
+
+            if (frame.state === "main") {
+              frameClass += " frame-main";
+              badgeHtml = `<span class="frame-badge badge-paused">Caller</span>`;
+            } else if (frame.state === "base") {
+              frameClass += " frame-base";
+              badgeHtml = `<span class="frame-badge badge-base">Base Case</span>`;
+            } else if (frame.state === "returning") {
+              frameClass += " frame-returning";
+              badgeHtml = `<span class="frame-badge badge-ret">Unwinding</span>`;
+            } else if (frame.state === "error") {
+              frameClass += " frame-error";
+              badgeHtml = `<span class="frame-badge badge-err">Overflow!</span>`;
+            } else if (frame.state === "waiting") {
+              frameClass += " frame-waiting";
+              badgeHtml = `<span class="frame-badge badge-paused">Paused</span>`;
+            } else {
+              frameClass += " frame-active";
+              badgeHtml = isTop ? `<span class="frame-badge badge-top">Active Top</span>` : "";
+            }
+
+            const retBanner = frame.returnBadge
+              ? `<div><span class="frame-return-banner">&uarr; ${frame.returnBadge}</span></div>`
+              : "";
+
+            return `
+              <div class="${frameClass}">
+                <div class="frame-top-row">
+                  <span class="frame-sig">${frame.sig}</span>
+                  ${badgeHtml}
+                </div>
+                <div class="frame-details">
+                  <span class="frame-locals">${frame.locals}</span>
+                  <span class="frame-status">${frame.status}</span>
+                </div>
+                ${retBanner}
+              </div>
+            `;
+          })
+          .join("");
+
+        // 6. Extra Structure Visual (Tab 3)
+        renderExtraStructure(step.extraVisual);
+
+        // 7. Console Output
+        const consoleEl = document.getElementById("consoleOutput");
+        consoleEl.innerHTML = step.consoleLines
+          .map((line) => `<div class="console-line-${line.type}">${line.text}</div>`)
+          .join("");
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+
+        // 8. Prediction Banner Check
+        renderPredictionBanner(step);
+
+        // 9. Button States
+        document.getElementById("prevBtn").disabled = state.stepIndex === 0;
+        const isLast = state.stepIndex >= steps.length - 1;
+        const waitingForPrediction =
+          state.predictMode &&
+          step.prediction &&
+          state.predictionAnsweredForStep !== state.stepIndex &&
+          !isLast;
+
+        document.getElementById("nextBtn").disabled = isLast || waitingForPrediction;
+      }
+
+      function renderPredictionBanner(step) {
+        const banner = document.getElementById("predictBanner");
+        const isLast = state.stepIndex >= state.trace.steps.length - 1;
+
+        if (!state.predictMode || !step.prediction || isLast) {
+          banner.style.display = "none";
+          return;
+        }
+
+        banner.style.display = "block";
+        document.getElementById("predictQuestionText").textContent = step.prediction.question;
+        const optsEl = document.getElementById("predictOptionsContainer");
+        const fbEl = document.getElementById("predictFeedback");
+        optsEl.innerHTML = "";
+        fbEl.style.display = "none";
+
+        step.prediction.options.forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "predict-opt-btn";
+          btn.textContent = opt.text;
+
+          if (state.predictionAnsweredForStep === state.stepIndex && opt.correct) {
+            btn.classList.add("correct");
+          }
+
+          btn.addEventListener("click", () => {
+            optsEl.querySelectorAll(".predict-opt-btn").forEach((b) => {
+              b.classList.remove("wrong", "correct");
+            });
+
+            if (opt.correct) {
+              btn.classList.add("correct");
+              fbEl.className = "predict-feedback correct";
+              fbEl.textContent = opt.feedback;
+              fbEl.style.display = "block";
+              state.predictionAnsweredForStep = state.stepIndex;
+              document.getElementById("nextBtn").disabled = false;
+            } else {
+              btn.classList.add("wrong");
+              fbEl.className = "predict-feedback wrong";
+              fbEl.textContent = opt.feedback + " Try another option!";
+              fbEl.style.display = "block";
+            }
+          });
+
+          optsEl.appendChild(btn);
+        });
+      }
+
+      /* ======================================================================
+         5. NAVIGATION & PLAYBACK CONTROLS
+         ====================================================================== */
+      function stepForward() {
+        if (state.stepIndex < state.trace.steps.length - 1) {
+          const currentStep = state.trace.steps[state.stepIndex];
+          if (
+            state.predictMode &&
+            currentStep.prediction &&
+            state.predictionAnsweredForStep !== state.stepIndex
+          ) {
+            stopAutoPlay();
+            return;
+          }
+          state.stepIndex++;
+          renderCurrentStep();
+        } else {
+          stopAutoPlay();
+        }
+      }
+
+      function stepBackward() {
+        stopAutoPlay();
+        if (state.stepIndex > 0) {
+          state.stepIndex--;
+          renderCurrentStep();
+        }
+      }
+
+      function stopAutoPlay() {
+        if (state.playTimer) {
+          clearInterval(state.playTimer);
+          state.playTimer = null;
+        }
+        document.getElementById("playBtn").innerHTML = "&#9654; Auto-Play";
+      }
+
+      function toggleAutoPlay() {
+        if (state.playTimer) {
+          stopAutoPlay();
+          return;
+        }
+        if (state.stepIndex >= state.trace.steps.length - 1) {
+          state.stepIndex = 0;
+          renderCurrentStep();
+        }
+        document.getElementById("playBtn").innerHTML = "&#9208; Pause";
+        state.playTimer = setInterval(() => {
+          if (state.stepIndex >= state.trace.steps.length - 1) {
+            stopAutoPlay();
+            return;
+          }
+          const cur = state.trace.steps[state.stepIndex];
+          if (state.predictMode && cur.prediction && state.predictionAnsweredForStep !== state.stepIndex) {
+            stopAutoPlay();
+            return;
+          }
+          state.stepIndex++;
+          renderCurrentStep();
+        }, 1250);
+      }
+
+      function switchTab(tabName) {
+        stopAutoPlay();
+        state.activeTab = tabName;
+
+        document.querySelectorAll(".tab-btn").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.tab === tabName);
+        });
+
+        const visSec = document.getElementById("visualizerWorkspace");
+        const limSec = document.getElementById("limitsWorkspace");
+
+        if (tabName === "limits") {
+          visSec.style.display = "none";
+          limSec.style.display = "block";
+          updateLimitSimulator(parseInt(document.getElementById("limitSlider").value, 10));
+          return;
+        }
+
+        visSec.style.display = "block";
+        limSec.style.display = "none";
+
+        // Show/hide Why Recursion Helps sub-bar
+        document.getElementById("whySubBar").style.display = tabName === "why" ? "flex" : "none";
+
+        // Show/hide Break Base Case toggle (only relevant on Countdown & Factorial)
+        const breakChip = document.getElementById("breakBaseChip");
+        if (tabName === "countdown" || tabName === "factorial") {
+          breakChip.style.display = "inline-flex";
+        } else {
+          breakChip.style.display = "none";
+          state.breakBase = false;
+          document.getElementById("breakBaseToggle").checked = false;
+          breakChip.classList.remove("active-danger");
+        }
+
+        populateInputDropdown();
+        renderWorksheetPrompts();
+        rebuildTrace();
+      }
+
+      /* ======================================================================
+         6. TAB 4: STACK LIMIT & TIMING SIMULATOR LOGIC
+         ====================================================================== */
+      function estimateFactorialDigits(x) {
+        if (x <= 1) return 1;
+        // Kamenetsky's formula for number of digits in x!
+        const digits =
+          x * Math.log10(x / Math.E) + Math.log10(2 * Math.PI * x) / 2.0;
+        return Math.floor(digits) + 1;
+      }
+
+      function updateLimitSimulator(x) {
+        document.getElementById("limitSlider").value = x;
+        document.getElementById("limitSliderVal").textContent = `x = ${x}`;
+
+        // Standard Python recursion limit = 1000.
+        // Stack has 1 <module> frame + (x + 1) factorial frames = x + 2 total frames.
+        const totalFrames = x + 2;
+        const limit = 1000;
+        const crashes = totalFrames > limit;
+        const pct = Math.min(100, Math.round((totalFrames / limit) * 100));
+
+        document.getElementById("gaugeFramesText").textContent = `${totalFrames} / ${limit} frames`;
+        const fillEl = document.getElementById("gaugeFill");
+        fillEl.style.width = `${pct}%`;
+
+        const statusLabel = document.getElementById("gaugeStatusLabel");
+        const recCard = document.getElementById("recOutcomeCard");
+        const recText = document.getElementById("recOutcomeText");
+        const loopText = document.getElementById("loopOutcomeText");
+        const consoleBox = document.getElementById("limitConsoleBox");
+
+        const digitCount = estimateFactorialDigits(x);
+
+        loopText.innerHTML = `Uses only <strong>1 function frame</strong> total! Succeeds easily (${x}! has <strong>${digitCount.toLocaleString()}</strong> digits).`;
+
+        if (crashes) {
+          fillEl.classList.add("overflow");
+          statusLabel.textContent = "OVERFLOW (> 1000)";
+          statusLabel.style.color = "#991b1b";
+          recCard.className = "sim-stat-card crash";
+          recText.innerHTML = `<strong>CRASH!</strong> Tried to push ${totalFrames} frames onto a 1,000-frame stack.`;
+          consoleBox.innerHTML = `
+            <div class="console-line-cmd">&gt;&gt;&gt; factorial(${x})</div>
+            <div class="console-line-err">Traceback (most recent call last):</div>
+            <div class="console-line-err">&nbsp;&nbsp;File "factorial.py", line 5, in factorial</div>
+            <div class="console-line-err">&nbsp;&nbsp;&nbsp;&nbsp;return x * factorial(x - 1)</div>
+            <div class="console-line-err">&nbsp;&nbsp;[Previous line repeated 996 more times]</div>
+            <div class="console-line-err">RecursionError: maximum recursion depth exceeded</div>
+          `;
+        } else {
+          fillEl.classList.remove("overflow");
+          statusLabel.textContent = totalFrames >= 995 ? "Near Ceiling!" : "Safe";
+          statusLabel.style.color = totalFrames >= 995 ? "#92400e" : "#065f46";
+          recCard.className = "sim-stat-card ok";
+          recText.innerHTML = `Succeeds with <strong>${totalFrames} frames</strong> on the stack (${x + 1} <code>factorial</code> instances).`;
+          consoleBox.innerHTML = `
+            <div class="console-line-cmd">&gt;&gt;&gt; factorial(${x})</div>
+            <div class="console-line-ret">Success! Computed ${x}! (${digitCount.toLocaleString()} digits) using ${x + 1} factorial frames.</div>
+          `;
+        }
+      }
+
+      function runTimeTestSimulation() {
+        const x = parseInt(document.getElementById("timeTestSelect").value, 10);
+        const crashes = x + 2 > 1000;
+
+        // Realistic proportional microsecond timings for CS1 illustration
+        const loopSec = (0.000015 + x * 0.00000022).toFixed(5);
+        const recSec = (0.00004 + x * 0.0000013).toFixed(5);
+
+        const loopBar = document.getElementById("loopTimeBar");
+        const recBar = document.getElementById("recTimeBar");
+        const loopLbl = document.getElementById("loopTimeLabel");
+        const recLbl = document.getElementById("recTimeLabel");
+        const tbody = document.getElementById("timeHistoryBody");
+
+        loopLbl.textContent = `${loopSec} seconds`;
+        loopBar.style.width = `${Math.min(35, 10 + x / 45)}%`;
+
+        let takeaway = "";
+        if (crashes) {
+          recLbl.textContent = "RecursionError!";
+          recBar.classList.add("crashed");
+          recBar.style.width = "100%";
+          takeaway = "Recursive crashed (>1000 frames); loop succeeded!";
+        } else {
+          recLbl.textContent = `${recSec} seconds`;
+          recBar.classList.remove("crashed");
+          recBar.style.width = `${Math.min(95, 25 + x / 14)}%`;
+          const ratio = (parseFloat(recSec) / parseFloat(loopSec)).toFixed(1);
+          takeaway = `Loop ~${ratio}x faster (avoids ${x + 1} stack frames)`;
+        }
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>time_test(${x})</td>
+          <td>${loopSec}s</td>
+          <td>${crashes ? "RecursionError" : recSec + "s"}</td>
+          <td>${takeaway}</td>
+        `;
+        tbody.insertBefore(row, tbody.firstChild);
+        if (tbody.children.length > 5) {
+          tbody.removeChild(tbody.lastChild);
+        }
+      }
+
+      /* ======================================================================
+         7. EVENT LISTENERS & INITIALIZATION
+         ====================================================================== */
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      document.querySelectorAll(".sub-tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".sub-tab-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          state.whySubTab = btn.dataset.sub;
+
+          const callouts = {
+            folder:
+              "<strong>Why recursion shines here:</strong> Folders can hold folders inside folders to any unknown depth. A single recursive function explores every level naturally without manual tracking lists!",
+            palindrome:
+              "<strong>Why recursion shines here:</strong> A palindrome problem shrinks cleanly from both ends (word[1:-1]) until 0 or 1 letters remain.",
+            sumlist:
+              "<strong>Why recursion shines here:</strong> Demonstrates the classic 'first item + sum of the rest' pattern until reaching the empty list [] base case."
+          };
+          document.getElementById("whyCalloutText").innerHTML = callouts[state.whySubTab];
+
+          populateInputDropdown();
+          rebuildTrace();
+        });
+      });
+
+      document.getElementById("inputSelect").addEventListener("change", (e) => {
+        state.inputVal = e.target.value;
+        rebuildTrace();
+      });
+
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        stopAutoPlay();
+        state.stepIndex = 0;
+        state.predictionAnsweredForStep = -1;
+        renderCurrentStep();
+      });
+
+      document.getElementById("prevBtn").addEventListener("click", stepBackward);
+      document.getElementById("nextBtn").addEventListener("click", stepForward);
+      document.getElementById("playBtn").addEventListener("click", toggleAutoPlay);
+
+      document.getElementById("predictToggle").addEventListener("change", (e) => {
+        state.predictMode = e.target.checked;
+        document.getElementById("predictChip").classList.toggle("active-predict", state.predictMode);
+        if (state.predictMode) stopAutoPlay();
+        renderCurrentStep();
+      });
+
+      document.getElementById("breakBaseToggle").addEventListener("change", (e) => {
+        state.breakBase = e.target.checked;
+        document.getElementById("breakBaseChip").classList.toggle("active-danger", state.breakBase);
+        rebuildTrace();
+      });
+
+      // Keyboard Left/Right shortcuts
+      document.addEventListener("keydown", (e) => {
+        if (state.activeTab === "limits") return;
+        if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+        if (e.key === "ArrowRight") stepForward();
+        if (e.key === "ArrowLeft") stepBackward();
+      });
+
+      // Tab 4 Controls
+      document.getElementById("limitSlider").addEventListener("input", (e) => {
+        updateLimitSimulator(parseInt(e.target.value, 10));
+      });
+
+      document.querySelectorAll(".preset-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          updateLimitSimulator(parseInt(btn.dataset.x, 10));
+        });
+      });
+
+      document.getElementById("runTimeTestBtn").addEventListener("click", runTimeTestSimulation);
+
+      // Modal Controls
+      const guideModal = document.getElementById("guideModal");
+      document.getElementById("openGuideBtn").addEventListener("click", () => {
+        guideModal.classList.add("open");
+      });
+      document.getElementById("closeGuideBtn").addEventListener("click", () => {
+        guideModal.classList.remove("open");
+      });
+      guideModal.addEventListener("click", (e) => {
+        if (e.target === guideModal) guideModal.classList.remove("open");
+      });
+
+      // Initial Boot
+      populateInputDropdown();
+      renderWorksheetPrompts();
+      rebuildTrace();
+    })();
+  </script>
+</body>
+</html>
